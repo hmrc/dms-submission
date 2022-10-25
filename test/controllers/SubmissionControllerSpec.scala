@@ -30,7 +30,6 @@ import play.api.mvc.MultipartFormData
 import play.api.test.FakeRequest
 import play.api.test.Helpers._
 import services.SubmissionService
-import uk.gov.hmrc.http.HeaderCarrier
 
 import scala.concurrent.Future
 
@@ -53,7 +52,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       val request = FakeRequest(routes.SubmissionController.submit)
         .withMultipartFormDataBody(MultipartFormData(Map.empty, Seq.empty, Seq.empty))
-      implicit val hc: HeaderCarrier = HeaderCarrier()
 
       val result = route(app, request).value
 
@@ -67,7 +65,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       val request = FakeRequest(routes.SubmissionController.submit)
         .withMultipartFormDataBody(MultipartFormData(Map.empty, Seq.empty, Seq.empty))
-      implicit val hc: HeaderCarrier = HeaderCarrier()
 
       route(app, request).value.failed.futureValue
     }
