@@ -24,6 +24,7 @@ import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
+import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -31,14 +32,17 @@ import scala.concurrent.{ExecutionContext, Future}
 class SubmissionService @Inject() (
                                     objectStoreClient: PlayObjectStoreClient,
                                     fileService: FileService,
+                                    sdesService: SdesService
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
   def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[Done] = {
     withWorkingDir { workDir =>
       val zip = fileService.createZip(workDir, pdf)
-      objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        .map(_ => Done)
+      for {
+        objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
+        _             <- sdesService.notify(objectSummary, UUID.randomUUID().toString)
+      } yield Done
     }
   }
 

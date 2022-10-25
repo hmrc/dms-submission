@@ -19,7 +19,7 @@ package services
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import better.files.File
-import models.SubmissionRequest
+import models.{Done, SubmissionRequest}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{verify, when}
@@ -44,10 +44,15 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
   private val mockObjectStoreClient = mock[PlayObjectStoreClient]
   private val mockFileService = mock[FileService]
+  private val mockSdesService = mock[SdesService]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(mockObjectStoreClient, mockFileService)
+    Mockito.reset(
+      mockObjectStoreClient,
+      mockFileService,
+      mockSdesService
+    )
   }
 
   "submit" - {
@@ -55,7 +60,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     val app = new GuiceApplicationBuilder()
       .overrides(
         bind[PlayObjectStoreClient].toInstance(mockObjectStoreClient),
-        bind[FileService].toInstance(mockFileService)
+        bind[FileService].toInstance(mockFileService),
+        bind[SdesService].toInstance(mockSdesService)
       )
       .build()
 
@@ -83,10 +89,12 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(workDir, pdf)).thenReturn(zip)
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummary))
+      when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.successful(Done))
 
       service.submit(request, pdf)(hc).futureValue
 
       verify(mockObjectStoreClient).putObject(eqTo(Path.File("file")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockSdesService).notify(eqTo(objectSummary), any())(any())
 
       eventually {
         workDir.exists() mustEqual false
@@ -113,6 +121,24 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(workDir, pdf)).thenReturn(zip)
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
+      service.submit(request, pdf)(hc).failed.futureValue
+      eventually {
+        workDir.exists() mustEqual false
+      }
+    }
+
+    "must fail when sdes fails" in {
+      val workDir = File.newTemporaryDirectory()
+      val objectSummary = ObjectSummaryWithMd5(
+        location = Path.File("file"),
+        contentLength = 0L,
+        contentMd5 = Md5Hash("hash"),
+        lastModified = Instant.now()
+      )
+      when(mockFileService.workDir()).thenReturn(workDir)
+      when(mockFileService.createZip(workDir, pdf)).thenReturn(zip)
+      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummary))
+      when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf)(hc).failed.futureValue
       eventually {
         workDir.exists() mustEqual false
