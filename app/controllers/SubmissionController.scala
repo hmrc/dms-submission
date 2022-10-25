@@ -16,23 +16,26 @@
 
 package controllers
 
-import connectors.SdesConnector
+import models.SubmissionRequest
+import play.api.libs.Files.TemporaryFileCreator
 import play.api.mvc.ControllerComponents
-import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import services.SubmissionService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.ExecutionContext
 
 @Singleton
 class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
-                                       objectStoreClient: PlayObjectStoreClient,
-                                       sdesConnector: SdesConnector
-                                     ) extends BackendBaseController {
+                                       temporaryFileCreator: TemporaryFileCreator,
+                                       submissionService: SubmissionService
+                                     )(implicit ec: ExecutionContext) extends BackendBaseController {
 
-  def submit = Action.async(parse.multipartFormData(false)) { request =>
-//    request.body.files.map(a => a.ref.)
-    ???
+  def submit = Action.async(parse.multipartFormData(false)) { implicit request =>
+    val file = better.files.File(temporaryFileCreator.create().path).deleteOnExit()
+    submissionService.submit(SubmissionRequest(""), file)
+      .map(_ => Accepted)
   }
 
   // validate request
