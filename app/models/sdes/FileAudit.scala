@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.dmssubmission.config
+package models.sdes
 
-import javax.inject.{Inject, Singleton}
-import play.api.Configuration
+import play.api.libs.json.{Format, Json}
 
-@Singleton
-class AppConfig @Inject()(config: Configuration) {
+final case class FileAudit(correlationID: String)
 
-  val appName: String = config.get[String]("appName")
+object FileAudit {
+  implicit lazy val format: Format[FileAudit] = Json.format
 }

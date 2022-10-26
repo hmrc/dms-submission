@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.dmssubmission.config
+package models
 
-import com.google.inject.AbstractModule
+import play.api.libs.json.{Format, Json}
 
-class Module extends AbstractModule {
+final case class SubmissionRequest(
+                                    queueName: String
+                                  )
 
-  override def configure(): Unit = {
+object SubmissionRequest {
 
-    bind(classOf[AppConfig]).asEagerSingleton()
-  }
+  implicit lazy val formats: Format[SubmissionRequest] = Json.format
 }
