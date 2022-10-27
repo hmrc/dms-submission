@@ -16,7 +16,7 @@
 
 package controllers
 
-import models.SubmissionRequest
+import models.submission.SubmissionRequest
 import play.api.libs.Files.TemporaryFileCreator
 import play.api.mvc.ControllerComponents
 import services.SubmissionService

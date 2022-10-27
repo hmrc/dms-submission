@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-package config
+package models.submission
 
-import play.api.inject.Binding
-import play.api.{Configuration, Environment}
+import play.api.libs.json.{Format, Json}
 
-import java.time.Clock
+final case class SubmissionRequest(
+                                    queueName: String
+                                  )
 
-class Module extends play.api.inject.Module {
+object SubmissionRequest {
 
-  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
-    Seq(
-      bind[Clock].toInstance(Clock.systemUTC())
-    )
+  implicit lazy val formats: Format[SubmissionRequest] = Json.format
 }

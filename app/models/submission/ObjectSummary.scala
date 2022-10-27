@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-package models
+package models.submission
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{Json, OFormat}
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-final case class SubmissionRequest(
-                                    queueName: String
-                                  )
+import java.time.Instant
 
-object SubmissionRequest {
+final case class ObjectSummary(
+                                location: String,
+                                contentLength: Long,
+                                contentMd5: String,
+                                lastModified: Instant
+                              )
 
-  implicit lazy val formats: Format[SubmissionRequest] = Json.format
+object ObjectSummary extends MongoJavatimeFormats.Implicits {
+  implicit lazy val format: OFormat[ObjectSummary] = Json.format
 }

@@ -17,13 +17,16 @@
 package services
 
 import better.files.File
-import models.{Done, SubmissionRequest}
+import models.Done
+import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
+import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.objectstore.client.Path
+import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
+import java.time.Clock
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,7 +35,9 @@ import scala.concurrent.{ExecutionContext, Future}
 class SubmissionService @Inject() (
                                     objectStoreClient: PlayObjectStoreClient,
                                     fileService: FileService,
-                                    sdesService: SdesService
+                                    submissionItemRepository: SubmissionItemRepository,
+                                    sdesService: SdesService,
+                                    clock: Clock
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
@@ -41,10 +46,26 @@ class SubmissionService @Inject() (
       val zip = fileService.createZip(workDir, pdf)
       for {
         objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        _             <- sdesService.notify(objectSummary, UUID.randomUUID().toString)
+        item          =  createSubmissionItem(objectSummary)
+        _             <- submissionItemRepository.insert(item)
+        _             <- sdesService.notify(objectSummary, item.correlationId)
       } yield Done
     }
   }
+
+  private def createSubmissionItem(objectSummary: ObjectSummaryWithMd5): SubmissionItem =
+    SubmissionItem(
+      correlationId = UUID.randomUUID().toString,
+      status = SubmissionItemStatus.Submitted,
+      objectSummary = ObjectSummary(
+        location = objectSummary.location.asUri,
+        contentLength = objectSummary.contentLength,
+        contentMd5 = objectSummary.contentMd5.value,
+        lastModified = objectSummary.lastModified
+      ),
+      failureReason = None,
+      lastUpdated = clock.instant()
+    )
 
   private def withWorkingDir[A](f: File => Future[A]): Future[A] = {
     Future(fileService.workDir()).flatMap { workDir =>
