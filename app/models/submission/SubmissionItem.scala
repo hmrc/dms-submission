@@ -24,6 +24,7 @@ import java.time.Instant
 
 final case class SubmissionItem(
                                  correlationId: String,
+                                 callbackUrl: String,
                                  status: SubmissionItemStatus,
                                  objectSummary: ObjectSummary,
                                  failureReason: Option[String],
@@ -34,6 +35,7 @@ object SubmissionItem extends MongoJavatimeFormats.Implicits {
 
   lazy val reads: Reads[SubmissionItem] = (
     (__ \ "_id").read[String] and
+    (__ \ "callbackUrl").read[String] and
     (__ \ "status").read[SubmissionItemStatus] and
     (__ \ "objectSummary").read[ObjectSummary] and
     (__ \ "failureReason").readNullable[String] and
@@ -42,6 +44,7 @@ object SubmissionItem extends MongoJavatimeFormats.Implicits {
 
   lazy val writes: OWrites[SubmissionItem] = (
     (__ \ "_id").write[String] and
+    (__ \ "callbackUrl").write[String] and
     (__ \ "status").write[SubmissionItemStatus] and
     (__ \ "objectSummary").write[ObjectSummary] and
     (__ \ "failureReason").writeNullable[String] and

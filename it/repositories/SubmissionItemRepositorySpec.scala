@@ -42,6 +42,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
   private val item = SubmissionItem(
     correlationId = "correlationId",
+    callbackUrl = "callbackUrl",
     status = SubmissionItemStatus.Submitted,
     objectSummary = ObjectSummary(
       location = "location",

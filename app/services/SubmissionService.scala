@@ -46,16 +46,17 @@ class SubmissionService @Inject() (
       val zip = fileService.createZip(workDir, pdf)
       for {
         objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        item          =  createSubmissionItem(objectSummary)
+        item          =  createSubmissionItem(request, objectSummary)
         _             <- submissionItemRepository.insert(item)
         _             <- sdesService.notify(objectSummary, item.correlationId)
       } yield Done
     }
   }
 
-  private def createSubmissionItem(objectSummary: ObjectSummaryWithMd5): SubmissionItem =
+  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5): SubmissionItem =
     SubmissionItem(
       correlationId = UUID.randomUUID().toString,
+      callbackUrl = request.callbackUrl,
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
         location = objectSummary.location.asUri,

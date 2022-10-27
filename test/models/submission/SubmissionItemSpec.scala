@@ -38,6 +38,7 @@ class SubmissionItemSpec extends AnyFreeSpec with Matchers {
 
   private val json = Json.obj(
     "_id" -> "correlationId",
+    "callbackUrl" -> "callbackUrl",
     "status" -> Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Submitted),
     "objectSummary" -> objectSummary,
     "failureReason" -> "failure",
@@ -46,6 +47,7 @@ class SubmissionItemSpec extends AnyFreeSpec with Matchers {
 
   private val model = SubmissionItem(
     correlationId = "correlationId",
+    callbackUrl = "callbackUrl",
     status = SubmissionItemStatus.Submitted,
     objectSummary = objectSummary,
     failureReason = Some("failure"),

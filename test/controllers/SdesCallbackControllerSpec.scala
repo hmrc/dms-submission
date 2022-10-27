@@ -66,6 +66,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
 
     val item = SubmissionItem(
       correlationId = "correlationID",
+      callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
         location = "file",

@@ -77,7 +77,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     val service = app.injector.instanceOf[SubmissionService]
 
     val hc: HeaderCarrier = HeaderCarrier()
-    val request = SubmissionRequest("")
+    val request = SubmissionRequest("callbackUrl")
 
     val pdf = File.newTemporaryFile()
       .deleteOnExit()
@@ -94,6 +94,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     )
     val item = SubmissionItem(
       correlationId = "correlationId",
+      callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
         location = "file",
