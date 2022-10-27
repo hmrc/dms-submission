@@ -41,6 +41,7 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
+  // TODO return correlationId
   def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[Done] = {
     withWorkingDir { workDir =>
       val zip = fileService.createZip(workDir, pdf)

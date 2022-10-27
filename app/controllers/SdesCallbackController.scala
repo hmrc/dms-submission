@@ -16,6 +16,8 @@
 
 package controllers
 
+import connectors.CallbackConnector
+import models.Done
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.SubmissionItemStatus
 import play.api.mvc.ControllerComponents
@@ -28,17 +30,19 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class SdesCallbackController @Inject() (
                                          override val controllerComponents: ControllerComponents,
-                                         submissionItemRepository: SubmissionItemRepository
+                                         submissionItemRepository: SubmissionItemRepository,
+                                         callbackConnector: CallbackConnector
                                        )(implicit ec: ExecutionContext) extends BackendBaseController {
 
   def callback = Action.async(parse.json[NotificationCallback]) { implicit request =>
     submissionItemRepository.get(request.body.correlationID).flatMap {
       _.map { item =>
-        submissionItemRepository.update(
-          item.correlationId,
-          getItemStatus(request.body.notification),
-          request.body.failureReason
-        ).map(_ => Ok)
+        for {
+          _           <- submissionItemRepository.update(item.correlationId, getItemStatus(request.body.notification), request.body.failureReason)
+          updatedItem <- submissionItemRepository.get(item.correlationId).map(_.get) // TODO remove .get
+          _           <- if (updatedItem.status == SubmissionItemStatus.Processed) submissionItemRepository.remove(item.correlationId) else Future.successful(Done)
+          _           <- callbackConnector.notify(updatedItem)
+        } yield Ok
       }.getOrElse(Future.successful(NotFound))
     }
   }

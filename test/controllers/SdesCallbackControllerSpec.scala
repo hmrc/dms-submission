@@ -16,6 +16,7 @@
 
 package controllers
 
+import connectors.CallbackConnector
 import models.Done
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
@@ -41,10 +42,14 @@ import scala.concurrent.Future
 class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionValues with MockitoSugar with BeforeAndAfterEach with ScalaFutures {
 
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
+  private val mockCallbackConnector = mock[CallbackConnector]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(mockSubmissionItemRepository)
+    Mockito.reset(
+      mockSubmissionItemRepository,
+      mockCallbackConnector
+    )
   }
 
   "callback" - {
@@ -53,7 +58,8 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
 
     val app = GuiceApplicationBuilder()
       .overrides(
-        bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
+        bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
+        bind[CallbackConnector].toInstance(mockCallbackConnector)
       )
       .build()
 
@@ -78,10 +84,11 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       lastUpdated = clock.instant()
     )
 
-    "must update the status of the submission to Ready and return OK" in {
+    "must update the status of the submission to Ready, send a callback notification and return OK when the status is updated to Ready" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody))
@@ -89,14 +96,16 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Ready, None)
+      verify(mockCallbackConnector, times(1)).notify(item)
     }
 
-    "must update the status of the submission to Received and return OK" in {
+    "must update the status of the submission to Received, send a callback notification and return OK when the status is updated to Received" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReceived)))
@@ -104,14 +113,16 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository).get(requestBody.correlationID)
-      verify(mockSubmissionItemRepository).update(requestBody.correlationID, SubmissionItemStatus.Received, None)
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Received, None)
+      verify(mockCallbackConnector, times(1)).notify(item)
     }
 
-    "must update the status of the submission to Processed and return OK" in {
+    "must update the status of the submission to Processed, send a callback to notification and return OK when the status is updated to Processed" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessed)))
@@ -119,14 +130,16 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository).get(requestBody.correlationID)
-      verify(mockSubmissionItemRepository).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
+      verify(mockCallbackConnector, times(1)).notify(item)
     }
 
-    "must update the status of the submission to Failed and return OK" in {
+    "must update the status of the submission to Failed, send a callback to notification and return OK when the status is updated to Failed" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessingFailure, failureReason = Some("failure reason"))))
@@ -134,8 +147,9 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository).get(requestBody.correlationID)
-      verify(mockSubmissionItemRepository).update(requestBody.correlationID, SubmissionItemStatus.Failed, Some("failure reason"))
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Failed, Some("failure reason"))
+      verify(mockCallbackConnector, times(1)).notify(item)
     }
 
     "must return NOT_FOUND when there is no matching submission" in {
