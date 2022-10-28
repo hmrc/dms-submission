@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-package config
+package models.submission
 
-import play.api.inject.Binding
-import play.api.{Configuration, Environment}
+import play.api.libs.json.{Json, OFormat}
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-import java.time.Clock
+import java.time.Instant
 
-class Module extends play.api.inject.Module {
+final case class ObjectSummary(
+                                location: String,
+                                contentLength: Long,
+                                contentMd5: String,
+                                lastModified: Instant
+                              )
 
-  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
-    Seq(
-      bind[Clock].toInstance(Clock.systemUTC())
-    )
+object ObjectSummary extends MongoJavatimeFormats.Implicits {
+  implicit lazy val format: OFormat[ObjectSummary] = Json.format
 }

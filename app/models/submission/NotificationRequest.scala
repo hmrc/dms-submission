@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-package models
+package models.submission
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{Json, OFormat}
 
-final case class SubmissionRequest(
-                                    queueName: String
-                                  )
+final case class NotificationRequest(
+                                      correlationId: String,
+                                      status: SubmissionItemStatus,
+                                      objectSummary: ObjectSummary,
+                                      failureReason: Option[String]
+                                    )
 
-object SubmissionRequest {
+object NotificationRequest {
 
-  implicit lazy val formats: Format[SubmissionRequest] = Json.format
+  implicit lazy val format: OFormat[NotificationRequest] = Json.format
 }

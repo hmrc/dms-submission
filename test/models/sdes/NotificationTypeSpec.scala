@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package models
+package models.sdes
 
-import models.sdes.NotificationType
 import org.scalatest.OptionValues
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
