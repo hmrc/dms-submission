@@ -17,7 +17,6 @@
 package controllers
 
 import connectors.CallbackConnector
-import models.Done
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.SubmissionItemStatus
 import play.api.mvc.ControllerComponents
@@ -38,9 +37,7 @@ class SdesCallbackController @Inject() (
     submissionItemRepository.get(request.body.correlationID).flatMap {
       _.map { item =>
         for {
-          _           <- submissionItemRepository.update(item.correlationId, getItemStatus(request.body.notification), request.body.failureReason)
-          updatedItem <- submissionItemRepository.get(item.correlationId).map(_.get) // TODO remove .get
-          _           <- if (updatedItem.status == SubmissionItemStatus.Processed) submissionItemRepository.remove(item.correlationId) else Future.successful(Done)
+          updatedItem <- submissionItemRepository.update(item.correlationId, getItemStatus(request.body.notification), request.body.failureReason)
           _           <- callbackConnector.notify(updatedItem)
         } yield Ok
       }.getOrElse(Future.successful(NotFound))

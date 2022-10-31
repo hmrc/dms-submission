@@ -96,7 +96,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Ready, None)
       verify(mockCallbackConnector, times(1)).notify(item)
     }
@@ -113,7 +113,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Received, None)
       verify(mockCallbackConnector, times(1)).notify(item)
     }
@@ -130,7 +130,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
       verify(mockCallbackConnector, times(1)).notify(item)
     }
@@ -147,7 +147,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       val response = route(app, request).value
 
       status(response) mustEqual OK
-      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Failed, Some("failure reason"))
       verify(mockCallbackConnector, times(1)).notify(item)
     }
