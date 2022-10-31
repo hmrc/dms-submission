@@ -87,7 +87,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must update the status of the submission to Ready, send a callback notification and return OK when the status is updated to Ready" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
@@ -104,7 +104,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must update the status of the submission to Received, send a callback notification and return OK when the status is updated to Received" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
@@ -121,7 +121,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must update the status of the submission to Processed, send a callback to notification and return OK when the status is updated to Processed" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
@@ -138,7 +138,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must update the status of the submission to Failed, send a callback to notification and return OK when the status is updated to Failed" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(Done))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
