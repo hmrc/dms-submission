@@ -16,32 +16,48 @@
 
 package controllers
 
-import models.submission.SubmissionRequest
-import play.api.libs.Files.TemporaryFileCreator
-import play.api.mvc.ControllerComponents
+import better.files.File
+import cats.data.{EitherNec, EitherT, NonEmptyChain}
+import cats.implicits._
+import models.submission.{SubmissionRequest, SubmissionResponse}
+import play.api.libs.Files
+import play.api.libs.json.Json
+import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.SubmissionService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
-                                       temporaryFileCreator: TemporaryFileCreator,
                                        submissionService: SubmissionService
                                      )(implicit ec: ExecutionContext) extends BackendBaseController {
 
   def submit = Action.async(parse.multipartFormData(false)) { implicit request =>
-    val file = better.files.File(temporaryFileCreator.create().path).deleteOnExit()
-    submissionService.submit(SubmissionRequest(""), file)
-      .map(_ => Accepted)
+    val result: EitherT[Future, NonEmptyChain[String], String] = (
+      EitherT.fromEither[Future](getSubmissionRequest(request.body)),
+      EitherT.fromEither[Future](getFile(request.body))
+    ).parTupled.flatMap { case (submissionRequest, file) =>
+      EitherT.liftF(submissionService.submit(submissionRequest, file))
+    }
+    result.fold(
+      errors        => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
+      correlationId => Accepted(Json.toJson(SubmissionResponse.Success(correlationId)))
+    )
   }
 
-  // validate request
-  // generate metadata xml
-  // zip file contents and metadata xml
-  // upload to object-store
-  // send notification to sdes
-  // return accepted
+  // TODO move this to the companion object for the request so that it's easier to test
+  // TODO some validation to make sure callback urls are ok for us to call?
+  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile]): EitherNec[String, SubmissionRequest] =
+    formData.dataParts.get("callbackUrl")
+      .flatMap(_.headOption)
+      .map(SubmissionRequest(_))
+      .toRight(NonEmptyChain.one("callbackUrl is required"))
+
+  private def getFile(formData: MultipartFormData[Files.TemporaryFile]): EitherNec[String, File] =
+    formData.file("form")
+      .map(file => File(file.ref))
+      .toRight(NonEmptyChain.one("file is required"))
 }

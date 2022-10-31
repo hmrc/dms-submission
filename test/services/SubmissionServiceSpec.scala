@@ -116,13 +116,15 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
       when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.successful(Done))
 
-      service.submit(request, pdf)(hc).futureValue
+      val result = service.submit(request, pdf)(hc).futureValue
 
       verify(mockObjectStoreClient).putObject(eqTo(Path.File("file")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
       verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), any())(any())
 
-      itemCaptor.getValue.copy(correlationId = "correlationId") mustEqual item
+      val capturedItem = itemCaptor.getValue
+      capturedItem mustEqual item.copy(correlationId = capturedItem.correlationId)
+      result mustEqual capturedItem.correlationId
 
       eventually {
         workDir.exists() mustEqual false

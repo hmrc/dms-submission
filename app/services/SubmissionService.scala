@@ -17,14 +17,13 @@
 package services
 
 import better.files.File
-import models.Done
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 
 import java.time.Clock
 import java.util.UUID
@@ -41,8 +40,7 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
-  // TODO return correlationId
-  def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[Done] = {
+  def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
       val zip = fileService.createZip(workDir, pdf)
       for {
@@ -50,7 +48,7 @@ class SubmissionService @Inject() (
         item          =  createSubmissionItem(request, objectSummary)
         _             <- submissionItemRepository.insert(item)
         _             <- sdesService.notify(objectSummary, item.correlationId)
-      } yield Done
+      } yield item.correlationId
     }
   }
 

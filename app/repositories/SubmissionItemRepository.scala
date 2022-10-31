@@ -49,7 +49,7 @@ class SubmissionItemRepository @Inject() (
 
   def insert(item: SubmissionItem): Future[Done] =
     collection.insertOne(item.copy(lastUpdated = clock.instant()))
-      .toFuture
+      .toFuture()
       .map(_ => Done)
 
   def update(id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] = {
@@ -67,21 +67,20 @@ class SubmissionItemRepository @Inject() (
       options = FindOneAndUpdateOptions()
         .returnDocument(ReturnDocument.AFTER)
         .upsert(false)
-    ).toFuture.flatMap { item =>
-      Option(item)
-        .map(Future.successful)
+    ).headOption().flatMap {
+      _.map(Future.successful)
         .getOrElse(Future.failed(SubmissionItemRepository.NothingToUpdateException))
     }
   }
 
   def remove(id: String): Future[Done] =
     collection.findOneAndDelete(Filters.equal("_id", id))
-      .toFuture
+      .toFuture()
       .map(_ => Done)
 
   def get(id: String): Future[Option[SubmissionItem]] =
     collection.find(Filters.equal("_id", id))
-      .headOption
+      .headOption()
 }
 
 object SubmissionItemRepository {
