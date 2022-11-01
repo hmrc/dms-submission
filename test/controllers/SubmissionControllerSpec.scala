@@ -17,7 +17,7 @@
 package controllers
 
 import better.files.File
-import models.submission.{SubmissionMetadata, SubmissionRequest}
+import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
@@ -74,7 +74,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("callbackUrl"),
-              "metadata.store" -> Seq("true"),
+              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
@@ -137,7 +137,17 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
-              "callbackUrl" -> Seq("callbackUrl")
+              "callbackUrl" -> Seq("callbackUrl"),
+              "metadata.store" -> Seq("false"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.numberOfPages" -> Seq("1"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.submissionMark" -> Seq("submissionMark"),
+              "metadata.casKey" -> Seq("casKey"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
             ),
             files = Seq(
               MultipartFormData.FilePart(
@@ -169,11 +179,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       val result = route(app, request).value
 
       status(result) mustEqual BAD_REQUEST
-      contentAsJson(result) mustEqual Json.obj(
-        "errors" -> Seq(
-          "callbackUrl is required",
-          "file is required"
-        )
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain allOf(
+        "callbackUrl: This field is required",
+        "form: This field is required"
       )
 
       verify(mockSubmissionService, never()).submit(any(), any())(any())
