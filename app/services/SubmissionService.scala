@@ -42,19 +42,20 @@ class SubmissionService @Inject() (
   // TODO use separate blocking EC for file stuff
   def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
-      val zip = fileService.createZip(workDir, pdf)
+      val correlationId = UUID.randomUUID().toString
+      val zip = fileService.createZip(workDir, pdf, request.metadata, correlationId)
       for {
         objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        item          =  createSubmissionItem(request, objectSummary)
+        item          =  createSubmissionItem(request, objectSummary, correlationId)
         _             <- submissionItemRepository.insert(item)
         _             <- sdesService.notify(objectSummary, item.correlationId)
       } yield item.correlationId
     }
   }
 
-  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5): SubmissionItem =
+  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, correlationId: String): SubmissionItem =
     SubmissionItem(
-      correlationId = UUID.randomUUID().toString,
+      correlationId = correlationId,
       callbackUrl = request.callbackUrl,
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(

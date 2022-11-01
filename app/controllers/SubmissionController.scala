@@ -19,13 +19,14 @@ package controllers
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
-import models.submission.{SubmissionRequest, SubmissionResponse}
+import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import play.api.libs.Files
 import play.api.libs.json.Json
 import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.SubmissionService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
+import java.time.{LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -50,11 +51,27 @@ class SubmissionController @Inject() (
 
   // TODO move this to the companion object for the request so that it's easier to test
   // TODO some validation to make sure callback urls are ok for us to call?
-  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile]): EitherNec[String, SubmissionRequest] =
+  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile]): EitherNec[String, SubmissionRequest] = {
+
+    // TODO parse metadata from the request
+    val metadata = SubmissionMetadata(
+      store = false,
+      source = "source",
+      timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0).toInstant(ZoneOffset.UTC),
+      formId = "formId",
+      numberOfPages = 1,
+      customerId = "customerId",
+      submissionMark = "submissionMark",
+      casKey = "casKey",
+      classificationType = "classificationType",
+      businessArea = "businessArea"
+    )
+
     formData.dataParts.get("callbackUrl")
       .flatMap(_.headOption)
-      .map(SubmissionRequest(_))
+      .map(callbackUrl => SubmissionRequest(callbackUrl, metadata))
       .toRight(NonEmptyChain.one("callbackUrl is required"))
+  }
 
   private def getFile(formData: MultipartFormData[Files.TemporaryFile]): EitherNec[String, File] =
     formData.file("form")

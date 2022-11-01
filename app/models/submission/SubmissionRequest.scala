@@ -19,7 +19,8 @@ package models.submission
 import play.api.libs.json.{Format, Json}
 
 final case class SubmissionRequest(
-                                    callbackUrl: String
+                                    callbackUrl: String,
+                                    metadata: SubmissionMetadata
                                   )
 
 object SubmissionRequest {
