@@ -17,14 +17,13 @@
 package services
 
 import better.files.File
-import models.Done
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 
 import java.time.Clock
 import java.util.UUID
@@ -41,22 +40,22 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
-  // TODO return correlationId
-  def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[Done] = {
+  def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
-      val zip = fileService.createZip(workDir, pdf)
+      val correlationId = UUID.randomUUID().toString
+      val zip = fileService.createZip(workDir, pdf, request.metadata, correlationId)
       for {
         objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        item          =  createSubmissionItem(request, objectSummary)
+        item          =  createSubmissionItem(request, objectSummary, correlationId)
         _             <- submissionItemRepository.insert(item)
         _             <- sdesService.notify(objectSummary, item.correlationId)
-      } yield Done
+      } yield item.correlationId
     }
   }
 
-  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5): SubmissionItem =
+  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, correlationId: String): SubmissionItem =
     SubmissionItem(
-      correlationId = UUID.randomUUID().toString,
+      correlationId = correlationId,
       callbackUrl = request.callbackUrl,
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(

@@ -16,32 +16,50 @@
 
 package controllers
 
-import models.submission.SubmissionRequest
-import play.api.libs.Files.TemporaryFileCreator
-import play.api.mvc.ControllerComponents
+import better.files.File
+import cats.data.{EitherNec, EitherT, NonEmptyChain}
+import cats.implicits._
+import models.submission.{SubmissionRequest, SubmissionResponse}
+import play.api.i18n.{I18nSupport, Messages}
+import play.api.libs.Files
+import play.api.libs.json.Json
+import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.SubmissionService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
-                                       temporaryFileCreator: TemporaryFileCreator,
-                                       submissionService: SubmissionService
-                                     )(implicit ec: ExecutionContext) extends BackendBaseController {
+                                       submissionService: SubmissionService,
+                                       submissionFormProvider: SubmissionFormProvider
+                                     )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
 
   def submit = Action.async(parse.multipartFormData(false)) { implicit request =>
-    val file = better.files.File(temporaryFileCreator.create().path).deleteOnExit()
-    submissionService.submit(SubmissionRequest(""), file)
-      .map(_ => Accepted)
+    val result: EitherT[Future, NonEmptyChain[String], String] = (
+      EitherT.fromEither[Future](getSubmissionRequest(request.body)),
+      EitherT.fromEither[Future](getFile(request.body))
+    ).parTupled.flatMap { case (submissionRequest, file) =>
+      EitherT.liftF(submissionService.submit(submissionRequest, file))
+    }
+    result.fold(
+      errors        => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
+      correlationId => Accepted(Json.toJson(SubmissionResponse.Success(correlationId)))
+    )
   }
 
-  // validate request
-  // generate metadata xml
-  // zip file contents and metadata xml
-  // upload to object-store
-  // send notification to sdes
-  // return accepted
+  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
+    submissionFormProvider.form.bindFromRequest(formData.dataParts).fold(
+      formWithErrors => Left(NonEmptyChain.fromSeq(formWithErrors.errors.map(error => formatError(error.key, error.format))).get), // always safe
+      _.rightNec[String]
+    )
+
+  private def getFile(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, File] =
+    formData.file("form")
+      .map(file => File(file.ref))
+      .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
+
+  private def formatError(key: String, message: String): String = s"$key: $message"
 }

@@ -16,14 +16,27 @@
 
 package models.submission
 
-import play.api.libs.json.{Format, Json}
+import cats.data.NonEmptyChain
+import play.api.libs.json.{Json, OFormat}
 
-final case class SubmissionRequest(
-                                    callbackUrl: String,
-                                    metadata: SubmissionMetadata
-                                  )
+sealed trait SubmissionResponse extends Product with Serializable
 
-object SubmissionRequest {
 
-  implicit lazy val formats: Format[SubmissionRequest] = Json.format
+object SubmissionResponse {
+
+  final case class Success(correlationId: String) extends SubmissionResponse
+
+  object Success {
+    implicit lazy val format: OFormat[Success] = Json.format[Success]
+  }
+
+  final case class Failure(errors: Seq[String]) extends SubmissionResponse
+
+  object Failure {
+
+    def apply(errors: NonEmptyChain[String]): Failure =
+      Failure(errors.toChain.toVector)
+
+    implicit lazy val format: OFormat[Failure] = Json.format[Failure]
+  }
 }

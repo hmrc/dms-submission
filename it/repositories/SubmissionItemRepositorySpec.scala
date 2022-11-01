@@ -71,10 +71,10 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
   "update" - {
 
-    "must update a record if it exists" in {
+    "must update a record if it exists and return it" in {
       val expected = item.copy(status = SubmissionItemStatus.Ready, failureReason = Some("failure"), lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Ready, failureReason = Some("failure")).futureValue
+      repository.update("correlationId", SubmissionItemStatus.Ready, failureReason = Some("failure")).futureValue mustEqual expected
       repository.get("correlationId").futureValue.value mustEqual expected
     }
 

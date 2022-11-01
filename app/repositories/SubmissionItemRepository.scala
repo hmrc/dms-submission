@@ -49,10 +49,10 @@ class SubmissionItemRepository @Inject() (
 
   def insert(item: SubmissionItem): Future[Done] =
     collection.insertOne(item.copy(lastUpdated = clock.instant()))
-      .toFuture
+      .toFuture()
       .map(_ => Done)
 
-  def update(id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[Done] = {
+  def update(id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] = {
 
     val updates = List(
       Updates.set("lastUpdated", clock.instant()),
@@ -61,26 +61,26 @@ class SubmissionItemRepository @Inject() (
         .getOrElse(Updates.unset("failureReason"))
     )
 
-    collection.updateOne(
+    collection.findOneAndUpdate(
       filter = Filters.equal("_id", id),
-      update = Updates.combine(updates: _*)
-    ).toFuture.flatMap { result =>
-      if (result.getMatchedCount == 0) {
-        Future.failed(SubmissionItemRepository.NothingToUpdateException)
-      } else {
-        Future.successful(Done)
-      }
+      update = Updates.combine(updates: _*),
+      options = FindOneAndUpdateOptions()
+        .returnDocument(ReturnDocument.AFTER)
+        .upsert(false)
+    ).headOption().flatMap {
+      _.map(Future.successful)
+        .getOrElse(Future.failed(SubmissionItemRepository.NothingToUpdateException))
     }
   }
 
   def remove(id: String): Future[Done] =
     collection.findOneAndDelete(Filters.equal("_id", id))
-      .toFuture
+      .toFuture()
       .map(_ => Done)
 
   def get(id: String): Future[Option[SubmissionItem]] =
     collection.find(Filters.equal("_id", id))
-      .headOption
+      .headOption()
 }
 
 object SubmissionItemRepository {
