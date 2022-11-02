@@ -20,15 +20,15 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import better.files.File
 import models.Done
-import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionMetadata, SubmissionRequest}
+import models.submission._
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
-import org.mockito.{ArgumentCaptor, Mockito}
 import org.mockito.Mockito.{verify, when}
-import org.scalatest.{BeforeAndAfterEach, OptionValues}
+import org.mockito.{ArgumentCaptor, Mockito}
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -37,8 +37,8 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Md5Hash, ObjectSummaryWithMd5, Path}
 
-import java.time.{Clock, Instant, LocalDate, LocalDateTime, ZoneOffset}
 import java.time.temporal.ChronoUnit
+import java.time.{Clock, Instant, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
 
 class SubmissionServiceSpec extends AnyFreeSpec with Matchers
