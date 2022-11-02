@@ -111,7 +111,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         businessArea = "businessArea"
       )
 
-      val expectedRequest = SubmissionRequest("callbackUrl", expectedMetadata)
+      val expectedRequest = SubmissionRequest(None, "callbackUrl", expectedMetadata)
 
       val result = route(app, request).value
 
