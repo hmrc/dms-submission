@@ -29,6 +29,7 @@ class SubmissionFormProvider @Inject() () {
   // TODO some validation to make sure callback urls are ok for us to call?
   val form: Form[SubmissionRequest] = Form(
     mapping(
+      "correlationId" -> optional(text),
       "callbackUrl" -> text,
       "metadata" -> mapping(
         "store" -> text

@@ -89,7 +89,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       classificationType = "classificationType",
       businessArea = "businessArea"
     )
-    val request = SubmissionRequest("callbackUrl", metadata)
+    val request = SubmissionRequest(None, "callbackUrl", metadata)
 
     val pdf = File.newTemporaryFile()
       .deleteOnExit()
@@ -137,6 +137,34 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       val capturedItem = itemCaptor.getValue
       capturedItem mustEqual item.copy(correlationId = capturedItem.correlationId)
       result mustEqual capturedItem.correlationId
+
+      eventually {
+        workDir.exists() mustEqual false
+      }
+    }
+
+    "must use the correlationId in the request if it exists" in {
+      val workDir = File.newTemporaryDirectory()
+      val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
+      val correlationId = "correlationId"
+      val requestWithCorrelationId = request.copy(correlationId = Some(correlationId))
+
+      when(mockFileService.workDir()).thenReturn(workDir)
+      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
+      when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
+      when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.successful(Done))
+
+      val result = service.submit(requestWithCorrelationId, pdf)(hc).futureValue
+
+      verify(mockObjectStoreClient).putObject(eqTo(Path.File("file")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
+      verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), any())(any())
+
+      val capturedItem = itemCaptor.getValue
+      capturedItem mustEqual item.copy(correlationId = capturedItem.correlationId)
+      capturedItem.correlationId mustEqual correlationId
+      result mustEqual correlationId
 
       eventually {
         workDir.exists() mustEqual false

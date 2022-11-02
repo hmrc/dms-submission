@@ -22,48 +22,59 @@ import org.scalatest.OptionValues
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-import java.time.{LocalDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZoneOffset}
 
 class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionValues {
 
   private val form = new SubmissionFormProvider().form
 
-  "must return a `SubmissionRequest` when given valid input" in {
-
-    val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
-
-    val expectedResult = SubmissionRequest(
-      callbackUrl = "callbackUrl",
-      metadata = SubmissionMetadata(
-        store = false,
-        source = "source",
-        timeOfReceipt = timeOfReceipt.toInstant(ZoneOffset.UTC),
-        formId = "formId",
-        numberOfPages = 1,
-        customerId = "customerId",
-        submissionMark = "submissionMark",
-        casKey = "casKey",
-        classificationType = "classificationType",
-        businessArea = "businessArea"
-      )
+  private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
+  private val completeRequest = SubmissionRequest(
+    correlationId = Some("correlationId"),
+    callbackUrl = "callbackUrl",
+    metadata = SubmissionMetadata(
+      store = false,
+      source = "source",
+      timeOfReceipt = timeOfReceipt.toInstant(ZoneOffset.UTC),
+      formId = "formId",
+      numberOfPages = 1,
+      customerId = "customerId",
+      submissionMark = "submissionMark",
+      casKey = "casKey",
+      classificationType = "classificationType",
+      businessArea = "businessArea"
     )
+  )
 
-    val result = form.bind(Map(
-      "callbackUrl" -> "callbackUrl",
-      "metadata.store" -> "false",
-      "metadata.source" -> "source",
-      "metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt),
-      "metadata.formId" -> "formId",
-      "metadata.numberOfPages" -> "1",
-      "metadata.customerId" -> "customerId",
-      "metadata.submissionMark" -> "submissionMark",
-      "metadata.casKey" -> "casKey",
-      "metadata.classificationType" -> "classificationType",
-      "metadata.businessArea" -> "businessArea"
-    )).value.value
+  private val completeData = Map(
+    "correlationId" -> "correlationId",
+    "callbackUrl" -> "callbackUrl",
+    "metadata.store" -> "false",
+    "metadata.source" -> "source",
+    "metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt),
+    "metadata.formId" -> "formId",
+    "metadata.numberOfPages" -> "1",
+    "metadata.customerId" -> "customerId",
+    "metadata.submissionMark" -> "submissionMark",
+    "metadata.casKey" -> "casKey",
+    "metadata.classificationType" -> "classificationType",
+    "metadata.businessArea" -> "businessArea"
+  )
 
-    result mustEqual expectedResult
+  "must return a `SubmissionRequest` when given valid input" in {
+    form.bind(completeData).value.value mustEqual completeRequest
+  }
+
+  "correlationId" - {
+
+    "must being `None` if there is no correlationId" in {
+      form.bind(completeData - "correlationId").value.value.correlationId mustBe None
+    }
+
+    "must bind `None` if correlationId is an empty string" in {
+      form.bind(completeData + ("correlationId" -> "")).value.value.correlationId mustBe None
+    }
   }
 
   "callbackUrl" - {
