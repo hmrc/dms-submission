@@ -38,10 +38,12 @@ class SdesConnector @Inject() (
 
   private val service: Service = configuration.get[Service]("microservice.services.sdes")
   private val clientId: String = configuration.get[String]("services.sdes.client-id")
+  private val path: Option[String] = Some(configuration.get[String]("microservice.services.sdes.path")).filter(_.nonEmpty)
+  private val baseUrl: String = List(Some(service.baseUrl), path).flatten.mkString("/")
 
-  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] = {
+  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] =
     httpClient
-      .post(url"${service.baseUrl}/notification/fileready")
+      .post(url"$baseUrl/notification/fileready")
       .withBody(Json.toJson(request))
       .setHeader("x-client-id" -> clientId)
       .execute
@@ -52,7 +54,6 @@ class SdesConnector @Inject() (
           Future.failed(SdesConnector.UnexpectedResponseException(response.status, response.body))
         }
       }
-  }
 }
 
 object SdesConnector {

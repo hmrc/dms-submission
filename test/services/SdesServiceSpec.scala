@@ -22,10 +22,10 @@ import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito.{times, verify, when}
-import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -73,7 +73,7 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with O
       val request = FileNotifyRequest(
         "information-type",
         FileMetadata(
-          "recipient-or-sender",
+          "dms-submission",
           "file",
           Path.File("file").asUri,
           FileChecksum("md5", value = "hash"),

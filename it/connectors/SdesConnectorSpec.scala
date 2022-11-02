@@ -27,6 +27,7 @@ import play.api.http.Status.{INTERNAL_SERVER_ERROR, NO_CONTENT}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
+import util.WireMockHelper
 
 class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with WireMockHelper {
 
@@ -34,6 +35,7 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
     GuiceApplicationBuilder()
       .configure(
         "microservice.services.sdes.port" -> server.port(),
+        "microservice.services.sdes.path" -> "",
         "services.sdes.client-id" -> "client-id"
       )
       .build()
@@ -93,6 +95,28 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
       )
 
       connector.notify(request)(hc).failed.futureValue
+    }
+
+    "must call the correct endpoint when there is an extra path part configured" in {
+
+      val app = GuiceApplicationBuilder()
+        .configure(
+          "microservice.services.sdes.port" -> server.port(),
+          "microservice.services.sdes.path" -> "sdes-stub",
+          "services.sdes.client-id" -> "client-id"
+        )
+        .build()
+
+      val connector = app.injector.instanceOf[SdesConnector]
+
+      server.stubFor(
+        post(urlMatching(s"/sdes-stub$url"))
+          .withRequestBody(equalToJson(Json.stringify(Json.toJson(request))))
+          .withHeader("x-client-id", equalTo("client-id"))
+          .willReturn(aResponse().withStatus(NO_CONTENT))
+      )
+
+      connector.notify(request)(hc).futureValue
     }
   }
 }
