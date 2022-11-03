@@ -31,35 +31,52 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.Files.SingletonTemporaryFileCreator
 import play.api.libs.json.Json
 import play.api.mvc.MultipartFormData
-import play.api.test.FakeRequest
 import play.api.test.Helpers._
+import play.api.test.{FakeRequest, Helpers}
 import services.SubmissionService
+import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
+import uk.gov.hmrc.internalauth.client._
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutures with OptionValues with MockitoSugar with BeforeAndAfterEach {
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(mockSubmissionService)
+    Mockito.reset(mockSubmissionService, mockStubBehaviour)
   }
 
   private val mockSubmissionService = mock[SubmissionService]
 
-  private val app = new GuiceApplicationBuilder()
+  private val mockStubBehaviour = mock[StubBehaviour]
+  private val backendAuthComponents: BackendAuthComponents =
+    BackendAuthComponentsStub(mockStubBehaviour)(Helpers.stubControllerComponents(), global)
+  private val permission = Predicate.Permission(
+    resource = Resource(
+      resourceType = ResourceType("dms-submission"),
+      resourceLocation = ResourceLocation("submit")
+    ),
+    action = IAAction("POST")
+  )
+
+  private val app = GuiceApplicationBuilder()
     .overrides(
-      bind[SubmissionService].toInstance(mockSubmissionService)
+      bind[SubmissionService].toInstance(mockSubmissionService),
+      bind[BackendAuthComponents].toInstance(backendAuthComponents)
     )
     .build()
 
   "submit" - {
 
-
     "must return ACCEPTED when a submission is successful" in {
 
       val fileCaptor: ArgumentCaptor[File] = ArgumentCaptor.forClass(classOf[File])
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
+        .thenReturn(Future.unit)
 
       when(mockSubmissionService.submit(any(), any())(any()))
         .thenReturn(Future.successful("correlationId"))
@@ -70,6 +87,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .writeText("Hello, World!")
 
       val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
@@ -120,10 +138,14 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture())(any())
 
+      // TODO make this less flaky
       fileCaptor.getValue.contentAsString mustEqual betterTempFile.contentAsString
     }
 
     "must fail when the submission fails" in {
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
+        .thenReturn(Future.unit)
 
       when(mockSubmissionService.submit(any(), any())(any()))
         .thenReturn(Future.failed(new RuntimeException()))
@@ -134,6 +156,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .writeText("Hello, World!")
 
       val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
@@ -167,7 +190,11 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
     "must return BAD_REQUEST when the user provides an invalid request" in {
 
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
+        .thenReturn(Future.unit)
+
       val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map.empty,
@@ -184,6 +211,51 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         "callbackUrl: This field is required",
         "form: This field is required"
       )
+
+      verify(mockSubmissionService, never()).submit(any(), any())(any())
+    }
+
+    "must fail when the user is not authorised" in {
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
+        .thenReturn(Future.failed(new RuntimeException()))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      val betterTempFile = File(tempFile.toPath)
+        .deleteOnExit()
+        .writeText("Hello, World!")
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("callbackUrl"),
+              "metadata.store" -> Seq("false"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.numberOfPages" -> Seq("1"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.submissionMark" -> Seq("submissionMark"),
+              "metadata.casKey" -> Seq("casKey"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = betterTempFile.size
+              )
+            ),
+            badParts = Seq.empty
+          )
+        )
+
+      route(app, request).value.failed.futureValue
 
       verify(mockSubmissionService, never()).submit(any(), any())(any())
     }

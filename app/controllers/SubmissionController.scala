@@ -25,6 +25,7 @@ import play.api.libs.Files
 import play.api.libs.json.Json
 import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.SubmissionService
+import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.{Inject, Singleton}
@@ -34,10 +35,21 @@ import scala.concurrent.{ExecutionContext, Future}
 class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
                                        submissionService: SubmissionService,
-                                       submissionFormProvider: SubmissionFormProvider
+                                       submissionFormProvider: SubmissionFormProvider,
+                                       auth: BackendAuthComponents
                                      )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
 
-  def submit = Action.async(parse.multipartFormData(false)) { implicit request =>
+  private val permission = Predicate.Permission(
+    resource = Resource(
+      resourceType = ResourceType("dms-submission"),
+      resourceLocation = ResourceLocation("submit")
+    ),
+    action = IAAction("POST")
+  )
+
+  private val authorised = auth.authorizedAction(permission)
+
+  def submit = authorised.compose(Action(parse.multipartFormData(false))).async { implicit request =>
     val result: EitherT[Future, NonEmptyChain[String], String] = (
       EitherT.fromEither[Future](getSubmissionRequest(request.body)),
       EitherT.fromEither[Future](getFile(request.body))

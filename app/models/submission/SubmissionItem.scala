@@ -16,8 +16,8 @@
 
 package models.submission
 
-import play.api.libs.json.{Json, OFormat, OWrites, Reads, Writes, __}
 import play.api.libs.functional.syntax._
+import play.api.libs.json.{OFormat, OWrites, Reads, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant

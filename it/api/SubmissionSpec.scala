@@ -34,6 +34,8 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.mvc.MultipartFormData.{DataPart, FilePart}
+import play.api.test.Helpers.AUTHORIZATION
+import play.api.test.RunningServer
 import util.WireMockHelper
 
 import java.time.LocalDateTime
@@ -46,18 +48,23 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private val httpClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
   private val internalAuthBaseUrl: String = "http://localhost:8470"
-  private val authToken: String = UUID.randomUUID().toString
+  private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
+  private val clientAuthToken: String = UUID.randomUUID().toString
 
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .configure(
-      "internal-auth.token" -> authToken
+      "internal-auth.token" -> dmsSubmissionAuthToken
     )
     .build()
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    if (!authTokenIsValid()) createAuthToken()
+    if (!authTokenIsValid(dmsSubmissionAuthToken)) createDmsSubmissionAuthToken()
+    if (!authTokenIsValid(clientAuthToken)) createClientAuthToken()
   }
+
+  override protected implicit lazy val runningServer: RunningServer =
+    FixedPortTestServerFactory.start(app)
 
   "Successful submissions must return ACCEPTED and receive callbacks confirming files have been processed" in {
 
@@ -69,6 +76,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     val timeOfReceipt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
 
     val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
+      .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
       .post(
         Source(Seq(
           DataPart("callbackUrl", s"http://localhost:${server.port()}/callback"),
@@ -109,11 +117,11 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     }
   }
 
-  private def createAuthToken(): Unit = {
-    val response = httpClient.url("http://localhost:8470/test-only/token")
+  private def createDmsSubmissionAuthToken(): Unit = {
+    val response = httpClient.url(s"$internalAuthBaseUrl/test-only/token")
       .post(
         Json.obj(
-          "token" -> authToken,
+          "token" -> dmsSubmissionAuthToken,
           "principal" -> "dms-submission",
           "permissions" -> Seq(
             Json.obj(
@@ -127,9 +135,27 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     response.status mustEqual CREATED
   }
 
-  private def authTokenIsValid(): Boolean = {
+  private def createClientAuthToken(): Unit = {
     val response = httpClient.url(s"$internalAuthBaseUrl/test-only/token")
-      .withHttpHeaders("Authorization" -> authToken)
+      .post(
+        Json.obj(
+          "token" -> clientAuthToken,
+          "principal" -> "test",
+          "permissions" -> Seq(
+            Json.obj(
+              "resourceType" -> "dms-submission",
+              "resourceLocation" -> "submit",
+              "actions" -> List("POST")
+            )
+          )
+        )
+      ).futureValue
+    response.status mustEqual CREATED
+  }
+
+  private def authTokenIsValid(token: String): Boolean = {
+    val response = httpClient.url(s"$internalAuthBaseUrl/test-only/token")
+      .withHttpHeaders("Authorization" -> token)
       .get()
       .futureValue
     response.status == OK
