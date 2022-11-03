@@ -31,7 +31,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
   private val completeRequest = SubmissionRequest(
-    correlationId = Some("correlationId"),
+    id = Some("correlationId"),
     callbackUrl = "callbackUrl",
     metadata = SubmissionMetadata(
       store = false,
@@ -69,11 +69,11 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   "correlationId" - {
 
     "must being `None` if there is no correlationId" in {
-      form.bind(completeData - "correlationId").value.value.correlationId mustBe None
+      form.bind(completeData - "correlationId").value.value.id mustBe None
     }
 
     "must bind `None` if correlationId is an empty string" in {
-      form.bind(completeData + ("correlationId" -> "")).value.value.correlationId mustBe None
+      form.bind(completeData + ("correlationId" -> "")).value.value.id mustBe None
     }
   }
 

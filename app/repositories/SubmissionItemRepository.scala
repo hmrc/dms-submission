@@ -18,6 +18,7 @@ package repositories
 
 import models.Done
 import models.submission.{SubmissionItem, SubmissionItemStatus}
+import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
@@ -42,6 +43,21 @@ class SubmissionItemRepository @Inject() (
       IndexOptions()
         .name("lastUpdatedIdx")
         .expireAfter(30, TimeUnit.DAYS)
+    ),
+    IndexModel(
+      Indexes.compoundIndex(
+        Indexes.ascending("owner"),
+        Indexes.ascending("id")
+      ),
+      IndexOptions()
+        .name("ownerIdIdx")
+        .unique(true)
+    ),
+    IndexModel(
+      Indexes.ascending("sdesCorrelationId"),
+      IndexOptions()
+        .name("sdesCorrelationIdIdx")
+        .unique(true)
     )
   ),
   extraCodecs = Codecs.playFormatSumCodecs(SubmissionItemStatus.format)
@@ -52,7 +68,16 @@ class SubmissionItemRepository @Inject() (
       .toFuture()
       .map(_ => Done)
 
-  def update(id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] = {
+  def update(owner: String, id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] =
+    update(Filters.and(
+      Filters.equal("id", id),
+      Filters.equal("owner", owner)
+    ), status, failureReason)
+
+  def update(sdesCorrelationId: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] =
+    update(Filters.equal("sdesCorrelationId", sdesCorrelationId), status, failureReason)
+
+  private def update(filter: Bson, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] = {
 
     val updates = List(
       Updates.set("lastUpdated", clock.instant()),
@@ -62,7 +87,7 @@ class SubmissionItemRepository @Inject() (
     )
 
     collection.findOneAndUpdate(
-      filter = Filters.equal("_id", id),
+      filter = filter,
       update = Updates.combine(updates: _*),
       options = FindOneAndUpdateOptions()
         .returnDocument(ReturnDocument.AFTER)
@@ -73,13 +98,20 @@ class SubmissionItemRepository @Inject() (
     }
   }
 
-  def remove(id: String): Future[Done] =
-    collection.findOneAndDelete(Filters.equal("_id", id))
-      .toFuture()
-      .map(_ => Done)
+  def remove(owner: String, id: String): Future[Done] =
+    collection.findOneAndDelete(Filters.and(
+      Filters.equal("id", id),
+      Filters.equal("owner", owner)
+    )).toFuture().map(_ => Done)
 
-  def get(id: String): Future[Option[SubmissionItem]] =
-    collection.find(Filters.equal("_id", id))
+  def get(owner: String, id: String): Future[Option[SubmissionItem]] =
+    collection.find(Filters.and(
+      Filters.equal("id", id),
+      Filters.equal("owner", owner)
+    )).headOption()
+
+  def get(sdesCorrelationId: String): Future[Option[SubmissionItem]] =
+    collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 }
 

@@ -75,10 +75,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       val fileCaptor: ArgumentCaptor[File] = ArgumentCaptor.forClass(classOf[File])
 
-      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
-        .thenReturn(Future.unit)
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
-      when(mockSubmissionService.submit(any(), any())(any()))
+      when(mockSubmissionService.submit(any(), any(), any())(any()))
         .thenReturn(Future.successful("correlationId"))
 
       val tempFile = SingletonTemporaryFileCreator.create()
@@ -136,7 +136,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       status(result) mustEqual ACCEPTED
       contentAsJson(result) mustEqual Json.obj("correlationId" -> "correlationId")
 
-      verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture())(any())
+      verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture(), eqTo("test-service"))(any())
 
       // TODO make this less flaky
       fileCaptor.getValue.contentAsString mustEqual betterTempFile.contentAsString
@@ -144,10 +144,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
     "must fail when the submission fails" in {
 
-      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
-        .thenReturn(Future.unit)
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
-      when(mockSubmissionService.submit(any(), any())(any()))
+      when(mockSubmissionService.submit(any(), any(), any())(any()))
         .thenReturn(Future.failed(new RuntimeException()))
 
       val tempFile = SingletonTemporaryFileCreator.create()
@@ -190,8 +190,8 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
     "must return BAD_REQUEST when the user provides an invalid request" in {
 
-      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
-        .thenReturn(Future.unit)
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
       val request = FakeRequest(routes.SubmissionController.submit)
         .withHeaders(AUTHORIZATION -> "my-token")
@@ -212,7 +212,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         "form: This field is required"
       )
 
-      verify(mockSubmissionService, never()).submit(any(), any())(any())
+      verify(mockSubmissionService, never()).submit(any(), any(), any())(any())
     }
 
     "must fail when the user is not authorised" in {
@@ -257,7 +257,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       route(app, request).value.failed.futureValue
 
-      verify(mockSubmissionService, never()).submit(any(), any())(any())
+      verify(mockSubmissionService, never()).submit(any(), any(), any())(any())
     }
   }
 }

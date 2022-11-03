@@ -49,7 +49,7 @@ class CallbackConnector @Inject() (
 
   private def createRequest(item: SubmissionItem): NotificationRequest =
     NotificationRequest(
-      correlationId = item.correlationId,
+      correlationId = item.id,
       status = item.status,
       objectSummary = item.objectSummary,
       failureReason = item.failureReason

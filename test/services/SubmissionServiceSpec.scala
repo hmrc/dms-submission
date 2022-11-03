@@ -105,7 +105,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     )
     val item = SubmissionItem(
-      correlationId = "correlationId",
+      id = "id",
+      owner = "test-service",
       callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
@@ -115,12 +116,14 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
       failureReason = None,
-      lastUpdated = clock.instant()
+      lastUpdated = clock.instant(),
+      sdesCorrelationId = "sdesCorrelationId"
     )
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo and notify SDES" in {
       val workDir = File.newTemporaryDirectory()
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
+      val fileCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
 
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
@@ -128,26 +131,30 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
       when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.successful(Done))
 
-      val result = service.submit(request, pdf)(hc).futureValue
+      val result = service.submit(request, pdf, "test-service")(hc).futureValue
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.File("file")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(fileCaptor.capture(), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
-      verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), any())(any())
 
       val capturedItem = itemCaptor.getValue
-      capturedItem mustEqual item.copy(correlationId = capturedItem.correlationId)
-      result mustEqual capturedItem.correlationId
+      capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
+      result mustEqual capturedItem.id
+
+      val capturedFile = fileCaptor.getValue
+      capturedFile mustEqual Path.Directory("test-service").file(capturedItem.id)
+
+      verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), eqTo(capturedItem.sdesCorrelationId))(any())
 
       eventually {
         workDir.exists() mustEqual false
       }
     }
 
-    "must use the correlationId in the request if it exists" in {
+    "must use the id in the request if it exists" in {
       val workDir = File.newTemporaryDirectory()
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
-      val correlationId = "correlationId"
-      val requestWithCorrelationId = request.copy(correlationId = Some(correlationId))
+      val id = "id"
+      val requestWithCorrelationId = request.copy(id = Some(id))
 
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
@@ -155,16 +162,17 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
       when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.successful(Done))
 
-      val result = service.submit(requestWithCorrelationId, pdf)(hc).futureValue
+      val result = service.submit(requestWithCorrelationId, pdf, "test-service")(hc).futureValue
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.File("file")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("test-service").file(id)), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
-      verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), any())(any())
 
       val capturedItem = itemCaptor.getValue
-      capturedItem mustEqual item.copy(correlationId = capturedItem.correlationId)
-      capturedItem.correlationId mustEqual correlationId
-      result mustEqual correlationId
+      capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
+      capturedItem.id mustEqual id
+      result mustEqual id
+
+      verify(mockSdesService).notify(eqTo(objectSummaryWithMd5), eqTo(capturedItem.sdesCorrelationId))(any())
 
       eventually {
         workDir.exists() mustEqual false
@@ -173,14 +181,14 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
     "must fail when the file service fails to create a work directory" in {
       when(mockFileService.workDir()).thenThrow(new RuntimeException())
-      service.submit(request, pdf)(hc).failed.futureValue
+      service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
     "must fail when the fail service fails to create a zip file" in {
       val workDir = File.newTemporaryDirectory()
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
-      service.submit(request, pdf)(hc).failed.futureValue
+      service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
         workDir.exists() mustEqual false
       }
@@ -191,7 +199,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockFileService.workDir()).thenReturn(workDir)
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
-      service.submit(request, pdf)(hc).failed.futureValue
+      service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
         workDir.exists() mustEqual false
       }
@@ -203,7 +211,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.failed(new RuntimeException()))
-      service.submit(request, pdf)(hc).failed.futureValue
+      service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
         workDir.exists() mustEqual false
       }
@@ -216,7 +224,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
       when(mockSdesService.notify(any(), any())(any())).thenReturn(Future.failed(new RuntimeException()))
-      service.submit(request, pdf)(hc).failed.futureValue
+      service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
         workDir.exists() mustEqual false
       }

@@ -47,14 +47,14 @@ class SubmissionController @Inject() (
     action = IAAction("POST")
   )
 
-  private val authorised = auth.authorizedAction(permission)
+  private val authorised = auth.authorizedAction(permission, Retrieval.username)
 
   def submit = authorised.compose(Action(parse.multipartFormData(false))).async { implicit request =>
     val result: EitherT[Future, NonEmptyChain[String], String] = (
       EitherT.fromEither[Future](getSubmissionRequest(request.body)),
       EitherT.fromEither[Future](getFile(request.body))
     ).parTupled.flatMap { case (submissionRequest, file) =>
-      EitherT.liftF(submissionService.submit(submissionRequest, file))
+      EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
     }
     result.fold(
       errors        => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),

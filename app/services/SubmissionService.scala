@@ -40,22 +40,24 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
-  def submit(request: SubmissionRequest, pdf: File)(implicit hc: HeaderCarrier): Future[String] = {
+  def submit(request: SubmissionRequest, pdf: File, service: String)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
-      val correlationId = request.correlationId.getOrElse(UUID.randomUUID().toString)
-      val zip = fileService.createZip(workDir, pdf, request.metadata, correlationId)
+      val id = request.id.getOrElse(UUID.randomUUID().toString)
+      val zip = fileService.createZip(workDir, pdf, request.metadata, id)
+      val path = Path.Directory(service).file(id)
       for {
-        objectSummary <- objectStoreClient.putObject(Path.File("file"), zip.path.toFile)
-        item          =  createSubmissionItem(request, objectSummary, correlationId)
+        objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
+        item          =  createSubmissionItem(request, objectSummary, id, service)
         _             <- submissionItemRepository.insert(item)
-        _             <- sdesService.notify(objectSummary, item.correlationId)
-      } yield item.correlationId
+        _             <- sdesService.notify(objectSummary, item.sdesCorrelationId)
+      } yield item.id
     }
   }
 
-  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, correlationId: String): SubmissionItem =
+  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, id: String, service: String): SubmissionItem =
     SubmissionItem(
-      correlationId = correlationId,
+      id = id,
+      owner = service,
       callbackUrl = request.callbackUrl,
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
@@ -65,7 +67,8 @@ class SubmissionService @Inject() (
         lastModified = objectSummary.lastModified
       ),
       failureReason = None,
-      lastUpdated = clock.instant()
+      lastUpdated = clock.instant(),
+      sdesCorrelationId = UUID.randomUUID().toString
     )
 
   private def withWorkingDir[A](f: File => Future[A]): Future[A] = {

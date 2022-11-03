@@ -38,7 +38,7 @@ class SdesCallbackController @Inject() (
     submissionItemRepository.get(request.body.correlationID).flatMap {
       _.map { item =>
         for {
-          updatedItem <- submissionItemRepository.update(item.correlationId, getItemStatus(request.body.notification), request.body.failureReason)
+          updatedItem <- submissionItemRepository.update(item.sdesCorrelationId, getItemStatus(request.body.notification), request.body.failureReason)
           _           <- callbackConnector.notify(updatedItem)
         } yield Ok
       }.getOrElse(Future.successful(NotFound))
