@@ -19,6 +19,7 @@ package controllers
 import connectors.CallbackConnector
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.SubmissionItemStatus
+import play.api.Logging
 import play.api.mvc.ControllerComponents
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
@@ -31,7 +32,7 @@ class SdesCallbackController @Inject() (
                                          override val controllerComponents: ControllerComponents,
                                          submissionItemRepository: SubmissionItemRepository,
                                          callbackConnector: CallbackConnector
-                                       )(implicit ec: ExecutionContext) extends BackendBaseController {
+                                       )(implicit ec: ExecutionContext) extends BackendBaseController with Logging {
 
   def callback = Action.async(parse.json[NotificationCallback]) { implicit request =>
     submissionItemRepository.get(request.body.correlationID).flatMap {
