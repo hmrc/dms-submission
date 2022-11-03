@@ -66,12 +66,13 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     val requestBody = NotificationCallback(
       notification = NotificationType.FileReady,
       filename = "filename",
-      correlationID = "correlationID",
+      correlationID = "sdesCorrelationId",
       failureReason = None
     )
 
     val item = SubmissionItem(
-      correlationId = "correlationID",
+      id = "id",
+      owner = "owner",
       callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
@@ -81,7 +82,8 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
       failureReason = None,
-      lastUpdated = clock.instant()
+      lastUpdated = clock.instant(),
+      sdesCorrelationId = "sdesCorrelationId"
     )
 
     "must update the status of the submission to Ready, send a callback notification and return OK when the status is updated to Ready" in {

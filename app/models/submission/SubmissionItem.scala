@@ -16,40 +16,23 @@
 
 package models.submission
 
-import play.api.libs.functional.syntax._
-import play.api.libs.json.{OFormat, OWrites, Reads, __}
+import play.api.libs.json.{Json, OFormat}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
 final case class SubmissionItem(
-                                 correlationId: String,
+                                 id: String,
+                                 owner: String,
                                  callbackUrl: String,
                                  status: SubmissionItemStatus,
                                  objectSummary: ObjectSummary,
                                  failureReason: Option[String],
-                                 lastUpdated: Instant
+                                 lastUpdated: Instant,
+                                 sdesCorrelationId: String
                                )
 
 object SubmissionItem extends MongoJavatimeFormats.Implicits {
 
-  lazy val reads: Reads[SubmissionItem] = (
-    (__ \ "_id").read[String] and
-    (__ \ "callbackUrl").read[String] and
-    (__ \ "status").read[SubmissionItemStatus] and
-    (__ \ "objectSummary").read[ObjectSummary] and
-    (__ \ "failureReason").readNullable[String] and
-    (__ \ "lastUpdated").read[Instant]
-  )(SubmissionItem.apply _)
-
-  lazy val writes: OWrites[SubmissionItem] = (
-    (__ \ "_id").write[String] and
-    (__ \ "callbackUrl").write[String] and
-    (__ \ "status").write[SubmissionItemStatus] and
-    (__ \ "objectSummary").write[ObjectSummary] and
-    (__ \ "failureReason").writeNullable[String] and
-    (__ \ "lastUpdated").write[Instant]
-  )(unlift(SubmissionItem.unapply))
-
-  implicit lazy val format: OFormat[SubmissionItem] = OFormat(reads, writes)
+  implicit lazy val format: OFormat[SubmissionItem] = Json.format
 }

@@ -45,7 +45,8 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
   "notify" - {
 
     lazy val item = SubmissionItem(
-      correlationId = "correlationID",
+      id = "correlationID",
+      owner = "owner",
       callbackUrl = s"http://localhost:${server.port()}/callback",
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
@@ -55,11 +56,12 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
       failureReason = None,
-      lastUpdated = clock.instant()
+      lastUpdated = clock.instant(),
+      sdesCorrelationId = "sdesCorrelationId"
     )
 
     lazy val request = NotificationRequest(
-      correlationId = item.correlationId,
+      correlationId = item.id,
       status = item.status,
       objectSummary = item.objectSummary,
       failureReason = item.failureReason

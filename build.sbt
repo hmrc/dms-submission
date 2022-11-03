@@ -12,6 +12,7 @@ lazy val microservice = Project("dms-submission", file("."))
     scalacOptions += "-Wconf:src=routes/.*:s",
     PlayKeys.playDefaultPort := 8222,
     addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     buildInfoKeys := Seq[BuildInfoKey](name, version, PlayKeys.playDefaultPort),
     buildInfoPackage := "buildinfo"
   )
