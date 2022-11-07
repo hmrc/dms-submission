@@ -17,9 +17,9 @@
 package controllers
 
 import connectors.CallbackConnector
+import logging.Logging
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.SubmissionItemStatus
-import play.api.Logging
 import play.api.mvc.ControllerComponents
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
@@ -35,20 +35,26 @@ class SdesCallbackController @Inject() (
                                        )(implicit ec: ExecutionContext) extends BackendBaseController with Logging {
 
   def callback = Action.async(parse.json[NotificationCallback]) { implicit request =>
+    logger.info(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification}")
     submissionItemRepository.get(request.body.correlationID).flatMap {
       _.map { item =>
-        for {
-          updatedItem <- submissionItemRepository.update(item.sdesCorrelationId, getItemStatus(request.body.notification), request.body.failureReason)
-          _           <- callbackConnector.notify(updatedItem)
-        } yield Ok
-      }.getOrElse(Future.successful(NotFound))
+        request.body.notification match {
+          case NotificationType.FileProcessed | NotificationType.FileProcessingFailure =>
+            for {
+              updatedItem <- submissionItemRepository.update(item.sdesCorrelationId, getItemStatus(request.body.notification), request.body.failureReason)
+              _           <- callbackConnector.notify(updatedItem)
+            } yield Ok
+          case _ => Future.successful(Ok)
+        }
+      }.getOrElse {
+        logger.warn(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification} but no matching submission was found")
+        Future.successful(NotFound)
+      }
     }
   }
 
   private def getItemStatus(notificationType: NotificationType): SubmissionItemStatus =
     notificationType match {
-      case NotificationType.FileReady             => SubmissionItemStatus.Ready
-      case NotificationType.FileReceived          => SubmissionItemStatus.Received
       case NotificationType.FileProcessed         => SubmissionItemStatus.Processed
       case NotificationType.FileProcessingFailure => SubmissionItemStatus.Failed
     }

@@ -20,6 +20,7 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import com.github.tomakehurst.wiremock.client.WireMock._
+import models.sdes.NotificationType
 import models.submission.{SubmissionItemStatus, SubmissionResponse}
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -104,12 +105,6 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     val responseBody = response.body[JsValue].as[SubmissionResponse.Success]
 
     eventually(Timeout(Span(30, Seconds))) {
-
-      server.verify(1, postRequestedFor(urlMatching("/callback"))
-        .withRequestBody(matchingJsonPath("$.correlationId", equalTo(responseBody.correlationId)))
-        .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Received.toString)))
-      )
-
       server.verify(1, postRequestedFor(urlMatching("/callback"))
         .withRequestBody(matchingJsonPath("$.correlationId", equalTo(responseBody.correlationId)))
         .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Processed.toString)))
