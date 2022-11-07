@@ -28,8 +28,9 @@ final case class SubmissionItem(
                                  status: SubmissionItemStatus,
                                  objectSummary: ObjectSummary,
                                  failureReason: Option[String],
+                                 sdesCorrelationId: String,
                                  lastUpdated: Instant,
-                                 sdesCorrelationId: String
+                                 lockedAt: Option[Instant] = None
                                )
 
 object SubmissionItem extends MongoJavatimeFormats.Implicits {

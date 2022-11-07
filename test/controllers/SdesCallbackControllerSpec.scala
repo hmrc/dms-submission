@@ -22,7 +22,7 @@ import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.freespec.AnyFreeSpec
@@ -64,7 +64,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       .build()
 
     val requestBody = NotificationCallback(
-      notification = NotificationType.FileReady,
+      notification = NotificationType.FileProcessed,
       filename = "filename",
       correlationID = "sdesCorrelationId",
       failureReason = None
@@ -86,24 +86,24 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       sdesCorrelationId = "sdesCorrelationId"
     )
 
-    "must update the status of the submission to Ready, send a callback notification and return OK when the status is updated to Ready" in {
+    "must return OK when the status is updated to FileReady" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
-        .withJsonBody(Json.toJson(requestBody))
+        .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReady)))
 
       val response = route(app, request).value
 
       status(response) mustEqual OK
       verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
-      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Ready, None)
-      verify(mockCallbackConnector, times(1)).notify(item)
+      verify(mockSubmissionItemRepository, never()).update(any(), any(), any())
+      verify(mockCallbackConnector, never()).notify(item)
     }
 
-    "must update the status of the submission to Received, send a callback notification and return OK when the status is updated to Received" in {
+    "must return OK when the status is updated to FileReceived" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
       when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
@@ -116,8 +116,8 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
 
       status(response) mustEqual OK
       verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
-      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Received, None)
-      verify(mockCallbackConnector, times(1)).notify(item)
+      verify(mockSubmissionItemRepository, never()).update(any(), any(), any())
+      verify(mockCallbackConnector, never()).notify(item)
     }
 
     "must update the status of the submission to Processed, send a callback to notification and return OK when the status is updated to Processed" in {

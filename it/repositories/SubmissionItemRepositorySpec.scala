@@ -17,26 +17,38 @@
 package repositories
 
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
-import org.scalatest.OptionValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, OptionValues}
+import play.api.Configuration
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.{Duration, Instant}
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Future, Promise}
 
 class SubmissionItemRepositorySpec extends AnyFreeSpec
   with Matchers with OptionValues
   with DefaultPlayMongoRepositorySupport[SubmissionItem]
-  with ScalaFutures with IntegrationPatience {
+  with ScalaFutures with IntegrationPatience
+  with BeforeAndAfterEach {
 
-  private val clock: Clock = Clock.fixed(Instant.now.truncatedTo(ChronoUnit.MILLIS), ZoneOffset.UTC)
+  private val now: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
+  private val clock: MutableClock = MutableClock(now)
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+    clock.set(now)
+  }
 
   override protected def repository = new SubmissionItemRepository(
     mongoComponent = mongoComponent,
-    clock = clock
+    clock = clock,
+    configuration = Configuration("lock-ttl" -> 30)
   )
 
   private val item = SubmissionItem(
@@ -87,15 +99,15 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
   "update by owner and id" - {
 
     "must update a record if it exists and return it" in {
-      val expected = item.copy(status = SubmissionItemStatus.Ready, failureReason = Some("failure"), lastUpdated = clock.instant())
+      val expected = item.copy(status = SubmissionItemStatus.Processed, failureReason = Some("failure"), lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("owner", "id", SubmissionItemStatus.Ready, failureReason = Some("failure")).futureValue mustEqual expected
+      repository.update("owner", "id", SubmissionItemStatus.Processed, failureReason = Some("failure")).futureValue mustEqual expected
       repository.get("owner", "id").futureValue.value mustEqual expected
     }
 
     "must fail if no record exists" in {
       repository.insert(item).futureValue
-      repository.update("owner", "foobar", SubmissionItemStatus.Ready, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
+      repository.update("owner", "foobar", SubmissionItemStatus.Submitted, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
     }
 
     "must remove failure reason if it's passed as `None`" in {
@@ -117,15 +129,15 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
   "update by sdesCorrelationId" - {
 
     "must update a record if it exists and return it" in {
-      val expected = item.copy(status = SubmissionItemStatus.Ready, failureReason = Some("failure"), lastUpdated = clock.instant())
+      val expected = item.copy(status = SubmissionItemStatus.Submitted, failureReason = Some("failure"), lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Ready, failureReason = Some("failure")).futureValue mustEqual expected
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = Some("failure")).futureValue mustEqual expected
       repository.get("correlationId").futureValue.value mustEqual expected
     }
 
     "must fail if no record exists" in {
       repository.insert(item).futureValue
-      repository.update("foobar", SubmissionItemStatus.Ready, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
+      repository.update("foobar", SubmissionItemStatus.Submitted, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
     }
 
     "must remove failure reason if it's passed as `None`" in {
@@ -193,4 +205,121 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.get("owner", "foobar").futureValue mustBe defined
     }
   }
+
+  "lockAndReplaceOldestItemByStatus" - {
+
+    "must return true and replace an item that is found" in {
+
+      val item1 = randomItem
+      val item2 = randomItem
+
+      repository.insert(item1).futureValue
+      clock.advance(Duration.ofMinutes(1))
+      repository.insert(item2).futureValue
+      clock.advance(Duration.ofMinutes(1))
+
+      repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
+        Future.successful(item.copy(status = SubmissionItemStatus.Processed))
+      }.futureValue mustEqual true
+
+      val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
+      updatedItem1.status mustEqual SubmissionItemStatus.Processed
+      updatedItem1.lastUpdated mustEqual clock.instant()
+      updatedItem1.lockedAt mustBe None
+
+      val updatedItem2 = repository.get(item2.sdesCorrelationId).futureValue.value
+      updatedItem2.status mustEqual SubmissionItemStatus.Submitted
+      updatedItem2.lastUpdated mustEqual item2.lastUpdated.plus(Duration.ofMinutes(1))
+      updatedItem2.lockedAt mustBe None
+    }
+
+    "must return false and not replace when an item is not found" in {
+      repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
+        Future.successful(item)
+      }.futureValue mustEqual false
+    }
+
+    "must return false and not replace when an item is locked" in {
+
+      val item = randomItem.copy(lockedAt = Some(clock.instant()))
+
+      repository.insert(item).futureValue
+      clock.advance(Duration.ofSeconds(29))
+
+      repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
+        Future.successful(item.copy(status = SubmissionItemStatus.Processed))
+      }.futureValue mustEqual false
+
+      val retrievedItem = repository.get(item.sdesCorrelationId).futureValue.value
+      retrievedItem.status mustEqual SubmissionItemStatus.Submitted
+      retrievedItem.lastUpdated mustEqual item.lastUpdated
+      retrievedItem.lockedAt mustBe item.lockedAt
+    }
+
+    "must ignore locks that are too old" in {
+
+      val item1 = randomItem.copy(lockedAt = Some(clock.instant().minus(Duration.ofMinutes(30))))
+      val item2 = randomItem
+
+      repository.insert(item1).futureValue
+      clock.advance(Duration.ofMinutes(1))
+      repository.insert(item2).futureValue
+      clock.advance(Duration.ofMinutes(1))
+
+      repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
+        Future.successful(item.copy(status = SubmissionItemStatus.Processed))
+      }.futureValue mustEqual true
+
+      val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
+      updatedItem1.status mustEqual SubmissionItemStatus.Processed
+      updatedItem1.lastUpdated mustEqual clock.instant()
+      updatedItem1.lockedAt mustBe None
+
+      val updatedItem2 = repository.get(item2.sdesCorrelationId).futureValue.value
+      updatedItem2.status mustEqual SubmissionItemStatus.Submitted
+      updatedItem2.lastUpdated mustEqual item2.lastUpdated.plus(Duration.ofMinutes(1))
+      updatedItem2.lockedAt mustBe None
+    }
+
+    "must locked item while the provided function runs" in {
+
+      val promise: Promise[SubmissionItem] = Promise()
+      val item = randomItem
+
+      repository.insert(item).futureValue
+      clock.advance(Duration.ofMinutes(1))
+
+      val runningFuture = repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { _ =>
+        promise.future
+      }
+
+      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
+      promise.success(item.copy(status = SubmissionItemStatus.Processed))
+      runningFuture.futureValue
+      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt mustBe None
+    }
+
+    "must unlike item if the provided function fails" in {
+
+      val promise: Promise[SubmissionItem] = Promise()
+      repository.insert(item).futureValue
+      clock.advance(Duration.ofMinutes(1))
+
+      val runningFuture = repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { _ =>
+        promise.future
+      }
+
+      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
+      promise.failure(new RuntimeException())
+      runningFuture.failed.futureValue
+      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt mustBe None
+    }
+  }
+
+  private def randomItem: SubmissionItem = item.copy(
+    owner = UUID.randomUUID().toString,
+    id = UUID.randomUUID().toString,
+    sdesCorrelationId = UUID.randomUUID().toString,
+    lastUpdated = clock.instant()
+  )
 }

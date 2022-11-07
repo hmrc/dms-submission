@@ -23,16 +23,14 @@ sealed trait SubmissionItemStatus extends Product with Serializable
 object SubmissionItemStatus {
 
   case object Submitted extends SubmissionItemStatus
-  case object Ready extends SubmissionItemStatus
-  case object Received extends SubmissionItemStatus
+  case object Forwarded extends SubmissionItemStatus
   case object Processed extends SubmissionItemStatus
   case object Failed extends SubmissionItemStatus
 
   lazy val reads: Reads[SubmissionItemStatus] =
     __.read[String].flatMap {
       case "Submitted" => Reads.pure(Submitted)
-      case "Ready"     => Reads.pure(Ready)
-      case "Received"  => Reads.pure(Received)
+      case "Forwarded" => Reads.pure(Forwarded)
       case "Processed" => Reads.pure(Processed)
       case "Failed"    => Reads.pure(Failed)
       case _           => Reads.failed("Invalid value for submission item status")
@@ -41,8 +39,7 @@ object SubmissionItemStatus {
   lazy val writes: Writes[SubmissionItemStatus] =
     Writes {
       case Submitted => JsString("Submitted")
-      case Ready     => JsString("Ready")
-      case Received  => JsString("Received")
+      case Forwarded => JsString("Forwarded")
       case Processed => JsString("Processed")
       case Failed    => JsString("Failed")
     }

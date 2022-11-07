@@ -28,12 +28,8 @@ class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
       JsString("Submitted").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Submitted
     }
 
-    "must read Ready" in {
-      JsString("Ready").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Ready
-    }
-
-    "must read Received" in {
-      JsString("Received").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Received
+    "must read Forwarded" in {
+      JsString("Forwarded").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Forwarded
     }
 
     "must read Failed" in {
@@ -55,12 +51,8 @@ class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
       Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Submitted) mustEqual JsString("Submitted")
     }
 
-    "must write Ready" in {
-      Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Ready) mustEqual JsString("Ready")
-    }
-
-    "must write Received" in {
-      Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Received) mustEqual JsString("Received")
+    "must write Forwarded" in {
+      Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Forwarded) mustEqual JsString("Forwarded")
     }
 
     "must write Failed" in {
