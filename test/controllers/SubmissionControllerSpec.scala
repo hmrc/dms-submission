@@ -134,7 +134,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       val result = route(app, request).value
 
       status(result) mustEqual ACCEPTED
-      contentAsJson(result) mustEqual Json.obj("correlationId" -> "correlationId")
+      contentAsJson(result) mustEqual Json.obj("id" -> "correlationId")
 
       verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture(), eqTo("test-service"))(any())
 

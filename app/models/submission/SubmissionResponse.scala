@@ -24,7 +24,7 @@ sealed trait SubmissionResponse extends Product with Serializable
 
 object SubmissionResponse {
 
-  final case class Success(correlationId: String) extends SubmissionResponse
+  final case class Success(id: String) extends SubmissionResponse
 
   object Success {
     implicit lazy val format: OFormat[Success] = Json.format[Success]
