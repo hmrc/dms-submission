@@ -20,10 +20,11 @@ import models.Done
 import models.submission.{SubmissionItem, SubmissionItemStatus}
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
+import play.api.Configuration
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
-import java.time.Clock
+import java.time.{Clock, Duration}
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -31,7 +32,8 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class SubmissionItemRepository @Inject() (
                                            mongoComponent: MongoComponent,
-                                           clock: Clock
+                                           clock: Clock,
+                                           configuration: Configuration
                                          )(implicit ec: ExecutionContext
   ) extends PlayMongoRepository[SubmissionItem](
   collectionName = "submissions",
@@ -58,10 +60,17 @@ class SubmissionItemRepository @Inject() (
       IndexOptions()
         .name("sdesCorrelationIdIdx")
         .unique(true)
+    ),
+    IndexModel(
+      Indexes.ascending("status"),
+      IndexOptions()
+        .name("statusIdx")
     )
   ),
   extraCodecs = Codecs.playFormatSumCodecs(SubmissionItemStatus.format)
   ) {
+
+  private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
 
   def insert(item: SubmissionItem): Future[Done] =
     collection.insertOne(item.copy(lastUpdated = clock.instant()))
@@ -113,6 +122,46 @@ class SubmissionItemRepository @Inject() (
   def get(sdesCorrelationId: String): Future[Option[SubmissionItem]] =
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
+
+  def lockAndReplaceOldestItemByStatus(status: SubmissionItemStatus)(f: SubmissionItem => Future[SubmissionItem]): Future[Boolean] =
+    lockAndReplace(
+      filter = Filters.equal("status", status),
+      sort = Sorts.ascending("lastUpdated")
+    )(f)
+
+  private def lockAndReplace(filter: Bson, sort: Bson)(f: SubmissionItem => Future[SubmissionItem]): Future[Boolean] =
+    collection.findOneAndUpdate(
+      filter = Filters.and(
+        filter,
+        Filters.or(
+          Filters.exists("lockedAt", exists = false),
+          Filters.lt("lockedAt", clock.instant().minus(lockTtl))
+        )
+      ),
+      update = Updates.set("lockedAt", clock.instant()),
+      options = FindOneAndUpdateOptions().sort(sort)
+    ).headOption().flatMap {
+      _.map { item =>
+        f(item)
+          .flatMap { updatedItem =>
+            collection.replaceOne(
+              filter = Filters.equal("sdesCorrelationId", item.sdesCorrelationId),
+              replacement = updatedItem.copy(
+                lastUpdated = clock.instant(),
+                lockedAt = None
+              )
+            ).toFuture()
+          }
+          .recoverWith { e =>
+            collection.updateOne(
+              filter = Filters.equal("sdesCorrelationId", item.sdesCorrelationId),
+              update = Updates.unset("lockedAt")
+            ).toFuture()
+              .flatMap(_ => Future.failed(e))
+          }
+          .map(_ => true)
+      }.getOrElse(Future.successful(false))
+    }
 }
 
 object SubmissionItemRepository {
