@@ -106,7 +106,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
     eventually(Timeout(Span(30, Seconds))) {
       server.verify(1, postRequestedFor(urlMatching("/callback"))
-        .withRequestBody(matchingJsonPath("$.correlationId", equalTo(responseBody.correlationId)))
+        .withRequestBody(matchingJsonPath("$.correlationId", equalTo(responseBody.id)))
         .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Processed.toString)))
       )
     }
