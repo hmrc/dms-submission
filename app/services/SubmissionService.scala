@@ -40,14 +40,14 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   // TODO use separate blocking EC for file stuff
-  def submit(request: SubmissionRequest, pdf: File, service: String)(implicit hc: HeaderCarrier): Future[String] = {
+  def submit(request: SubmissionRequest, pdf: File, owner: String)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
       val id = request.id.getOrElse(UUID.randomUUID().toString)
       val zip = fileService.createZip(workDir, pdf, request.metadata, id)
-      val path = Path.Directory(service).file(id)
+      val path = Path.Directory(owner).file(id)
       for {
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
-        item          =  createSubmissionItem(request, objectSummary, id, service)
+        item          =  createSubmissionItem(request, objectSummary, id, owner)
         _             <- submissionItemRepository.insert(item)
         _             <- sdesService.notify(objectSummary, item.sdesCorrelationId)
       } yield item.id

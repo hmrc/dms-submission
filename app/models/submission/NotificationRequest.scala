@@ -19,7 +19,7 @@ package models.submission
 import play.api.libs.json.{Json, OFormat}
 
 final case class NotificationRequest(
-                                      correlationId: String,
+                                      id: String,
                                       status: SubmissionItemStatus,
                                       objectSummary: ObjectSummary,
                                       failureReason: Option[String]
