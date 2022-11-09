@@ -16,7 +16,7 @@
 
 package repositories
 
-import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
+import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -208,7 +208,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
   "lockAndReplaceOldestItemByStatus" - {
 
-    "must return true and replace an item that is found" in {
+    "must return Found and replace an item that is found" in {
 
       val item1 = randomItem
       val item2 = randomItem
@@ -220,7 +220,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
       repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
         Future.successful(item.copy(status = SubmissionItemStatus.Processed))
-      }.futureValue mustEqual true
+      }.futureValue mustEqual QueryResult.Found
 
       val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
       updatedItem1.status mustEqual SubmissionItemStatus.Processed
@@ -233,13 +233,13 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       updatedItem2.lockedAt mustBe None
     }
 
-    "must return false and not replace when an item is not found" in {
+    "must return NotFound and not replace when an item is not found" in {
       repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
         Future.successful(item)
-      }.futureValue mustEqual false
+      }.futureValue mustEqual QueryResult.NotFound
     }
 
-    "must return false and not replace when an item is locked" in {
+    "must return NotFound and not replace when an item is locked" in {
 
       val item = randomItem.copy(lockedAt = Some(clock.instant()))
 
@@ -248,7 +248,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
       repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
         Future.successful(item.copy(status = SubmissionItemStatus.Processed))
-      }.futureValue mustEqual false
+      }.futureValue mustEqual QueryResult.NotFound
 
       val retrievedItem = repository.get(item.sdesCorrelationId).futureValue.value
       retrievedItem.status mustEqual SubmissionItemStatus.Submitted
@@ -268,7 +268,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
       repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
         Future.successful(item.copy(status = SubmissionItemStatus.Processed))
-      }.futureValue mustEqual true
+      }.futureValue mustEqual QueryResult.Found
 
       val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
       updatedItem1.status mustEqual SubmissionItemStatus.Processed
@@ -299,7 +299,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt mustBe None
     }
 
-    "must unlike item if the provided function fails" in {
+    "must not unlock item if the provided function fails" in {
 
       val promise: Promise[SubmissionItem] = Promise()
       repository.insert(item).futureValue
@@ -312,7 +312,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
       promise.failure(new RuntimeException())
       runningFuture.failed.futureValue
-      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt mustBe None
+      repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
     }
   }
 
