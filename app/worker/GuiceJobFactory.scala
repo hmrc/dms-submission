@@ -14,18 +14,22 @@
  * limitations under the License.
  */
 
-package models.submission
+package worker
 
-import play.api.libs.json.{Json, OFormat}
+import org.quartz.{Job, Scheduler}
+import org.quartz.spi.{JobFactory, TriggerFiredBundle}
+import play.api.inject.Injector
 
-final case class NotificationRequest(
-                                      id: String,
-                                      status: SubmissionItemStatus,
-                                      objectSummary: ObjectSummary,
-                                      failureReason: Option[String]
-                                    )
+import javax.inject.{Singleton, Inject}
 
-object NotificationRequest {
+@Singleton
+class GuiceJobFactory @Inject() (
+                                  injector: Injector
+                                ) extends JobFactory {
 
-  implicit lazy val format: OFormat[NotificationRequest] = Json.format
+  override def newJob(bundle: TriggerFiredBundle, scheduler: Scheduler): Job = {
+    val detail = bundle.getJobDetail
+    val clazz = detail.getJobClass
+    injector.instanceOf(clazz)
+  }
 }

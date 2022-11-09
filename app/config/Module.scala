@@ -16,8 +16,10 @@
 
 package config
 
+import org.quartz.Scheduler
 import play.api.inject.Binding
 import play.api.{Configuration, Environment}
+import worker.SchedulerProvider
 
 import java.time.Clock
 
@@ -25,6 +27,7 @@ class Module extends play.api.inject.Module {
 
   override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
     Seq(
-      bind[Clock].toInstance(Clock.systemUTC())
+      bind[Clock].toInstance(Clock.systemUTC()),
+      bind[Scheduler].toProvider[SchedulerProvider].eagerly()
     )
 }

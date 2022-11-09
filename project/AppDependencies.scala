@@ -10,7 +10,8 @@ object AppDependencies {
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-28"           % "0.73.0",
     "org.typelevel"           %% "cats-core"                    % "2.8.0",
     "org.scala-lang.modules"  %% "scala-xml"                    % "1.3.0",
-    "uk.gov.hmrc"             %% "internal-auth-client-play-28" % "1.2.0"
+    "uk.gov.hmrc"             %% "internal-auth-client-play-28" % "1.2.0",
+    "org.quartz-scheduler"    %  "quartz"                       % "2.3.2"
   )
 
   val test = Seq(

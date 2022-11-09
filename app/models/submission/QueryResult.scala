@@ -16,16 +16,10 @@
 
 package models.submission
 
-import play.api.libs.json.{Json, OFormat}
+abstract class QueryResult
 
-final case class NotificationRequest(
-                                      id: String,
-                                      status: SubmissionItemStatus,
-                                      objectSummary: ObjectSummary,
-                                      failureReason: Option[String]
-                                    )
+object QueryResult {
 
-object NotificationRequest {
-
-  implicit lazy val format: OFormat[NotificationRequest] = Json.format
+  case object Found extends QueryResult
+  case object NotFound extends QueryResult
 }

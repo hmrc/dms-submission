@@ -17,7 +17,7 @@
 package repositories
 
 import models.Done
-import models.submission.{SubmissionItem, SubmissionItemStatus}
+import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
@@ -123,13 +123,13 @@ class SubmissionItemRepository @Inject() (
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 
-  def lockAndReplaceOldestItemByStatus(status: SubmissionItemStatus)(f: SubmissionItem => Future[SubmissionItem]): Future[Boolean] =
+  def lockAndReplaceOldestItemByStatus(status: SubmissionItemStatus)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] =
     lockAndReplace(
       filter = Filters.equal("status", status),
       sort = Sorts.ascending("lastUpdated")
     )(f)
 
-  private def lockAndReplace(filter: Bson, sort: Bson)(f: SubmissionItem => Future[SubmissionItem]): Future[Boolean] =
+  private def lockAndReplace(filter: Bson, sort: Bson)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] =
     collection.findOneAndUpdate(
       filter = Filters.and(
         filter,
@@ -152,15 +152,8 @@ class SubmissionItemRepository @Inject() (
               )
             ).toFuture()
           }
-          .recoverWith { e =>
-            collection.updateOne(
-              filter = Filters.equal("sdesCorrelationId", item.sdesCorrelationId),
-              update = Updates.unset("lockedAt")
-            ).toFuture()
-              .flatMap(_ => Future.failed(e))
-          }
-          .map(_ => true)
-      }.getOrElse(Future.successful(false))
+          .map(_ => QueryResult.Found)
+      }.getOrElse(Future.successful(QueryResult.NotFound))
     }
 }
 
