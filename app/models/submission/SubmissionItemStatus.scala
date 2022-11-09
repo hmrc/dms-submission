@@ -26,6 +26,7 @@ object SubmissionItemStatus {
   case object Forwarded extends SubmissionItemStatus
   case object Processed extends SubmissionItemStatus
   case object Failed extends SubmissionItemStatus
+  case object Completed extends SubmissionItemStatus
 
   lazy val reads: Reads[SubmissionItemStatus] =
     __.read[String].flatMap {
@@ -33,6 +34,7 @@ object SubmissionItemStatus {
       case "Forwarded" => Reads.pure(Forwarded)
       case "Processed" => Reads.pure(Processed)
       case "Failed"    => Reads.pure(Failed)
+      case "Completed" => Reads.pure(Completed)
       case _           => Reads.failed("Invalid value for submission item status")
     }
 
@@ -42,6 +44,7 @@ object SubmissionItemStatus {
       case Forwarded => JsString("Forwarded")
       case Processed => JsString("Processed")
       case Failed    => JsString("Failed")
+      case Completed => JsString("Completed")
     }
 
   implicit lazy val format: Format[SubmissionItemStatus] = Format(reads, writes)
