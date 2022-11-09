@@ -42,7 +42,7 @@ import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class SdesServiceITSpec extends AnyFreeSpec with Matchers
+class SdesServiceSpec extends AnyFreeSpec with Matchers
   with DefaultPlayMongoRepositorySupport[SubmissionItem]
   with ScalaFutures with IntegrationPatience
   with MockitoSugar with OptionValues with BeforeAndAfterEach {

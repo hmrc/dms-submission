@@ -24,7 +24,6 @@ import models.submission.{ObjectSummary, QueryResult, SubmissionItemStatus}
 import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.objectstore.client.ObjectSummaryWithMd5
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -55,26 +54,8 @@ class SdesService @Inject() (
       case QueryResult.NotFound => Future.successful(Done)
     }
 
-  // TODO remove this once we only notify using the worker
-  def notify(objectSummary: ObjectSummaryWithMd5, correlationId: String)(implicit hc: HeaderCarrier): Future[Done] =
-    connector.notify(createRequest(objectSummary, correlationId))
-
   private def notify(objectSummary: ObjectSummary, correlationId: String)(implicit hc: HeaderCarrier): Future[Done] =
     connector.notify(createRequest(objectSummary, correlationId))
-
-  private def createRequest(objectSummary: ObjectSummaryWithMd5, correlationId: String): FileNotifyRequest =
-    FileNotifyRequest(
-      informationType = informationType,
-      file = FileMetadata(
-        recipientOrSender = recipientOrSender,
-        name = objectSummary.location.fileName,
-        location = objectSummary.location.asUri,
-        checksum = FileChecksum("md5", objectSummary.contentMd5.value),
-        size = objectSummary.contentLength,
-        properties = List.empty
-      ),
-      audit = FileAudit(correlationId)
-    )
 
   private def createRequest(objectSummary: ObjectSummary, correlationId: String): FileNotifyRequest =
     FileNotifyRequest(
