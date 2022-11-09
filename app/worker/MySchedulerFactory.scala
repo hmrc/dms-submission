@@ -14,20 +14,17 @@
  * limitations under the License.
  */
 
-package config
+package worker
 
-import org.quartz.Scheduler
-import play.api.inject.Binding
-import play.api.{Configuration, Environment}
-import worker.SchedulerProvider
+import org.quartz.{Scheduler, SchedulerFactory}
 
-import java.time.Clock
+import java.util
 
-class Module extends play.api.inject.Module {
+class MySchedulerFactory extends SchedulerFactory {
 
-  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
-    Seq(
-      bind[Clock].toInstance(Clock.systemUTC()),
-      bind[Scheduler].toProvider[SchedulerProvider].eagerly()
-    )
+  override def getScheduler: Scheduler = ???
+
+  override def getScheduler(schedName: String): Scheduler = ???
+
+  override def getAllSchedulers: util.Collection[Scheduler] = ???
 }

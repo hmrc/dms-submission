@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-package config
+package worker
 
-import org.quartz.Scheduler
-import play.api.inject.Binding
-import play.api.{Configuration, Environment}
-import worker.SchedulerProvider
+import org.quartz.{Job, Scheduler}
+import org.quartz.spi.{JobFactory, TriggerFiredBundle}
+import play.api.inject.Injector
 
-import java.time.Clock
+import javax.inject.{Singleton, Inject}
 
-class Module extends play.api.inject.Module {
+@Singleton
+class GuiceJobFactory @Inject() (
+                                  injector: Injector
+                                ) extends JobFactory {
 
-  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
-    Seq(
-      bind[Clock].toInstance(Clock.systemUTC()),
-      bind[Scheduler].toProvider[SchedulerProvider].eagerly()
-    )
+  override def newJob(bundle: TriggerFiredBundle, scheduler: Scheduler): Job = {
+    val detail = bundle.getJobDetail
+    val clazz = detail.getJobClass
+    injector.instanceOf(clazz)
+  }
 }
