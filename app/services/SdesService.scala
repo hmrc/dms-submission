@@ -44,7 +44,7 @@ class SdesService @Inject() (
         item.copy(status = SubmissionItemStatus.Forwarded)
       }
     }.recover { case e =>
-      logger.error("Error notifying SDES about a submitted item")
+      logger.error("Error notifying SDES about a submitted item", e)
       QueryResult.Found
     }
 

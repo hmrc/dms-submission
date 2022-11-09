@@ -37,7 +37,7 @@ import uk.gov.hmrc.objectstore.client.Path
 import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, Duration, Instant}
+import java.time.{Clock, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

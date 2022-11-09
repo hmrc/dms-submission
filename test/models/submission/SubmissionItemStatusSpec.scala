@@ -40,6 +40,10 @@ class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
       JsString("Processed").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Processed
     }
 
+    "must read Completed" in {
+      JsString("Completed").as[SubmissionItemStatus] mustEqual SubmissionItemStatus.Completed
+    }
+
     "must fail to read anything else" in {
       JsString("foobar").validate[SubmissionItemStatus].isError mustBe true
     }
@@ -61,6 +65,10 @@ class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
 
     "must write Processed" in {
       Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Processed) mustEqual JsString("Processed")
+    }
+
+    "must write Completed" in {
+      Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Completed) mustEqual JsString("Completed")
     }
   }
 }

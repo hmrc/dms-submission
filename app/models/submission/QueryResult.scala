@@ -16,7 +16,7 @@
 
 package models.submission
 
-abstract class QueryResult
+sealed abstract class QueryResult
 
 object QueryResult {
 
