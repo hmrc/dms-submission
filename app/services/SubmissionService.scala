@@ -35,7 +35,6 @@ class SubmissionService @Inject() (
                                     objectStoreClient: PlayObjectStoreClient,
                                     fileService: FileService,
                                     submissionItemRepository: SubmissionItemRepository,
-                                    sdesService: SdesService,
                                     clock: Clock
                                   )(implicit ec: ExecutionContext) extends Logging {
 
@@ -49,7 +48,6 @@ class SubmissionService @Inject() (
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
         item          =  createSubmissionItem(request, objectSummary, id, owner)
         _             <- submissionItemRepository.insert(item)
-        _             <- sdesService.notify(objectSummary, item.sdesCorrelationId)
       } yield item.id
     }
   }

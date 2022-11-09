@@ -59,7 +59,6 @@ class SchedulerProvider @Inject() (
 
   private val sdesNotificationJob = JobBuilder.newJob(classOf[SdesNotificationJob])
     .withIdentity("sdesNotificationJob")
-    .storeDurably(false)
     .build()
   private val sdesNotificationJobTrigger = TriggerBuilder.newTrigger()
     .withIdentity("sdesNotificationJobTrigger")
@@ -67,7 +66,7 @@ class SchedulerProvider @Inject() (
     .startNow()
     .build()
   logger.info("Scheduling SDES Notifications")
-//  scheduler.scheduleJob(sdesNotificationJob, sdesNotificationJobTrigger) // TODO enable this when we remove notifications from SubmissionService
+  scheduler.scheduleJob(sdesNotificationJob, sdesNotificationJobTrigger)
 
   logger.info(s"Starting scheduler in $schedulerInitialDelay seconds")
   scheduler.startDelayed(schedulerInitialDelay)

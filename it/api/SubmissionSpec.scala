@@ -43,6 +43,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import scala.concurrent.duration.{Duration, DurationInt}
 
 class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite {
 
@@ -54,7 +55,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .configure(
-      "internal-auth.token" -> dmsSubmissionAuthToken
+      "internal-auth.token" -> dmsSubmissionAuthToken,
+      "workers.initial-delay" -> "0 seconds",
+      "workers.sdes-notification-worker.interval" -> "1 second"
     )
     .build()
 
