@@ -29,7 +29,7 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatest.time.{Seconds, Span}
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
-import play.api.http.Status.{ACCEPTED, CREATED, OK}
+import play.api.http.Status.{ACCEPTED, CREATED, NO_CONTENT, OK}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
@@ -38,6 +38,8 @@ import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
 import util.WireMockHelper
 
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -48,6 +50,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private val httpClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
   private val internalAuthBaseUrl: String = "http://localhost:8470"
+  private val sdesStubBaseUrl: String = "http://localhost:9191"
   private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
   private val clientAuthToken: String = UUID.randomUUID().toString
 
@@ -63,6 +66,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     super.beforeEach()
     if (!authTokenIsValid(dmsSubmissionAuthToken)) createDmsSubmissionAuthToken()
     if (!authTokenIsValid(clientAuthToken)) createClientAuthToken()
+    clearSdesCallbacks()
   }
 
   override protected implicit lazy val runningServer: RunningServer =
@@ -113,6 +117,55 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     }
   }
 
+  "Failed submissions must respond to the callbackUrl with a `Failed` status" in {
+
+    server.stubFor(
+      post(urlMatching("/callback"))
+        .willReturn(aResponse().withStatus(OK))
+    )
+
+    val id = UUID.randomUUID().toString
+    val timeOfReceipt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+
+    configureFailedCallback(s"dms-submission/test/$id")
+
+    val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
+      .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
+      .post(
+        Source(Seq(
+          DataPart("correlationId", id),
+          DataPart("callbackUrl", s"http://localhost:${server.port()}/callback"),
+          DataPart("metadata.store", "true"),
+          DataPart("metadata.source", "api-tests"),
+          DataPart("metadata.timeOfReceipt", DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)),
+          DataPart("metadata.formId", "formId"),
+          DataPart("metadata.numberOfPages", "1"),
+          DataPart("metadata.customerId", "customerId"),
+          DataPart("metadata.submissionMark", "submissionMark"),
+          DataPart("metadata.casKey", "casKey"),
+          DataPart("metadata.classificationType", "classificationType"),
+          DataPart("metadata.businessArea", "businessArea"),
+          FilePart(
+            key = "form",
+            filename = "form.pdf",
+            contentType = Some("application/octet-stream"),
+            ref = Source.single(ByteString("Hello, World!")),
+            fileSize = 0
+          )
+        ))
+      ).futureValue
+
+    response.status mustEqual ACCEPTED
+    val responseBody = response.body[JsValue].as[SubmissionResponse.Success]
+
+    eventually(Timeout(Span(30, Seconds))) {
+      server.verify(1, postRequestedFor(urlMatching("/callback"))
+        .withRequestBody(matchingJsonPath("$.id", equalTo(responseBody.id)))
+        .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Failed.toString)))
+      )
+    }
+  }
+
   private def createDmsSubmissionAuthToken(): Unit = {
     val response = httpClient.url(s"$internalAuthBaseUrl/test-only/token")
       .post(
@@ -155,5 +208,20 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       .get()
       .futureValue
     response.status == OK
+  }
+
+  private def configureFailedCallback(filename: String): Unit = {
+    val encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+    val response = httpClient.url(s"$sdesStubBaseUrl/sdes-stub/configure/notification/fileready?file=$encodedFilename&callback=unavailable")
+      .post(Json.obj())
+      .futureValue
+    response.status mustEqual NO_CONTENT
+  }
+
+  private def clearSdesCallbacks(): Unit = {
+    val response = httpClient.url(s"$sdesStubBaseUrl/sdes-stub/configure/notification/fileready")
+      .delete()
+      .futureValue
+    response.status mustEqual OK
   }
 }
