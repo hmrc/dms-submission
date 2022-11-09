@@ -41,6 +41,14 @@ class SchedulerProvider @Inject() (
     configuration.get[Duration]("workers.sdes-notification-worker.interval")
       .toSeconds.toInt
 
+  private val processedItemInterval: Int =
+    configuration.get[Duration]("workers.processed-item-worker.interval")
+      .toSeconds.toInt
+
+  private val failedItemInterval: Int =
+    configuration.get[Duration]("workers.failed-item-worker.interval")
+      .toSeconds.toInt
+
   private val factory: SchedulerFactory = new StdSchedulerFactory()
   private val scheduler: Scheduler = factory.getScheduler()
 
@@ -57,6 +65,9 @@ class SchedulerProvider @Inject() (
    */
   scheduler.clear()
 
+  /*
+   * SDES Notification Worker
+   */
   private val sdesNotificationJob = JobBuilder.newJob(classOf[SdesNotificationJob])
     .withIdentity("sdesNotificationJob")
     .build()
@@ -67,6 +78,34 @@ class SchedulerProvider @Inject() (
     .build()
   logger.info("Scheduling SDES Notifications")
   scheduler.scheduleJob(sdesNotificationJob, sdesNotificationJobTrigger)
+
+  /*
+   * Processed Item Worker
+   */
+  private val processedItemJob = JobBuilder.newJob(classOf[ProcessedItemJob])
+    .withIdentity("processedItemJob")
+    .build()
+  private val processedItemJobTrigger = TriggerBuilder.newTrigger()
+    .withIdentity("processedItemJobTrigger")
+    .withSchedule(SimpleScheduleBuilder.repeatSecondlyForever(processedItemInterval))
+    .startNow()
+    .build()
+  logger.info("Scheduling Processed Item job")
+  scheduler.scheduleJob(processedItemJob, processedItemJobTrigger)
+
+  /*
+   * Failed Item Worker
+   */
+  private val failedItemJob = JobBuilder.newJob(classOf[FailedItemJob])
+    .withIdentity("failedItemJob")
+    .build()
+  private val failedItemJobTrigger = TriggerBuilder.newTrigger()
+    .withIdentity("failedItemJobTrigger")
+    .withSchedule(SimpleScheduleBuilder.repeatSecondlyForever(failedItemInterval))
+    .startNow()
+    .build()
+  logger.info("Scheduling Failed Item job")
+  scheduler.scheduleJob(failedItemJob, failedItemJobTrigger)
 
   logger.info(s"Starting scheduler in $schedulerInitialDelay seconds")
   scheduler.startDelayed(schedulerInitialDelay)

@@ -58,7 +58,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
       "workers.initial-delay" -> "0 seconds",
-      "workers.sdes-notification-worker.interval" -> "1 second"
+      "workers.sdes-notification-worker.interval" -> "1 second",
+      "workers.processed-item-worker.interval" -> "1 second",
+      "workers.failed-item-worker.interval" -> "1 second"
     )
     .build()
 
