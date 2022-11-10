@@ -23,6 +23,7 @@ import play.api.data.Forms._
 import play.api.data.validation.{Constraint, Invalid, Valid}
 
 import java.net.URL
+import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.util.{Failure, Success, Try}
@@ -43,8 +44,9 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
           .verifying("error.invalid", _.toBooleanOption.isDefined)
           .transform(_.toBoolean, (_: Boolean).toString),
         "source" -> text,
-        "timeOfReceipt" -> localDateTime("yyyy-MM-dd'T'HH:mm:ss")
-          .transform(_.toInstant(ZoneOffset.UTC), LocalDateTime.ofInstant(_, ZoneOffset.UTC)),
+        "timeOfReceipt" -> text
+          .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
+          .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
         "formId" -> text,
         "numberOfPages" -> number,
         "customerId" -> text,
@@ -70,4 +72,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
         case Failure(_) => Invalid("callbackUrl.invalid")
       }
     }
+
+  private def parseDateTime(string: String): LocalDateTime =
+    LocalDateTime.parse(string, DateTimeFormatter.ISO_DATE_TIME)
 }

@@ -116,6 +116,12 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "metadata.timeOfReceipt" - {
 
+    "must bind a time with nanos" in {
+      val timeOfReceipt = LocalDateTime.of(2020, 2, 1, 12, 30, 20, 1337)
+      val boundField = form.bind(completeData + ("metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)))
+      boundField.hasErrors mustEqual false
+    }
+
     behave like requiredField("metadata.timeOfReceipt")
 
     "must fail if it is invalid" in {
