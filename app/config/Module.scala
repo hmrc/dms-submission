@@ -25,9 +25,16 @@ import java.time.Clock
 
 class Module extends play.api.inject.Module {
 
-  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
+  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] = {
+
+    val authTokenInitialiserBindings: Seq[Binding[_]] =
+      if (configuration.get[Boolean]("create-internal-auth-token-on-start")) {
+        Seq(bind[InternalAuthTokenInitialiser].to[InternalAuthTokenInitialiserImpl].eagerly())
+      } else Seq(bind[InternalAuthTokenInitialiser].to[NoOpInternalAuthTokenInitialiser].eagerly())
+
     Seq(
       bind[Clock].toInstance(Clock.systemUTC()),
-      bind[Scheduler].toProvider[SchedulerProvider].eagerly()
-    )
+      bind[Scheduler].toProvider[SchedulerProvider].eagerly(),
+    ) ++ authTokenInitialiserBindings
+  }
 }
