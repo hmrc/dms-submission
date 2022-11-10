@@ -17,7 +17,8 @@
 package services
 
 import better.files.File
-import models.submission.SubmissionMetadata
+import models.Done
+import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -25,8 +26,8 @@ import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
-import scala.io.Source
-import scala.xml.{Utility, XML}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Promise
 
 class FileServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
@@ -36,53 +37,52 @@ class FileServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
     .overrides(
       bind[Clock].toInstance(clock)
     )
-    .configure(
-      "metadata.format" -> "format",
-      "metadata.mimeType" -> "mimeType",
-      "metadata.target" -> "target"
-    )
     .build()
 
   private val service = app.injector.instanceOf[FileService]
 
-  "workDir" - {
-    "must create a directory within play's temporary directory" in {
-      val workDir = service.workDir().futureValue.deleteOnExit()
-      workDir.path.toString must startWith (app.configuration.get[String]("play.temporaryFile.dir"))
+  "withWorkingDirectory" - {
+
+    "must create a working directory and remove it when the given function completes" in {
+      val filePromise = Promise[File]()
+      val completionPromise = Promise[String]()
+
+      val future = service.withWorkingDirectory { file =>
+        filePromise.success(file)
+        completionPromise.future
+      }
+
+      val file = filePromise.future.futureValue
+      file.exists() mustBe true
+      file.isDirectory() mustBe true
+      completionPromise.success("foobar")
+
+      future.futureValue mustEqual "foobar"
+
+      eventually {
+        file.exists() mustBe false
+      }
     }
-  }
 
-  "createZip" - {
+    "must create a working directory and remove it when the function fails" in {
+      val filePromise = Promise[File]()
+      val completionPromise = Promise[Done]()
 
-    "must create a zip with the right contents in the work dir" in {
-      val correlationId = "correlationId"
-      val metadata = SubmissionMetadata(
-        store = true,
-        source = "source",
-        timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0, 0).toInstant(ZoneOffset.UTC),
-        formId = "formId",
-        numberOfPages = 1,
-        customerId = "customerId",
-        submissionMark = "submissionMark",
-        casKey = "casKey",
-        classificationType = "classificationType",
-        businessArea = "businessArea"
-      )
-      val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdf = File.newTemporaryFile().writeText("Hello, World!")
+      val future = service.withWorkingDirectory { file =>
+        filePromise.success(file)
+        completionPromise.future
+      }
 
-      val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue
+      val file = filePromise.future.futureValue
+      file.exists() mustBe true
+      file.isDirectory() mustBe true
+      completionPromise.failure(new RuntimeException())
 
-      val tmpDir = File.newTemporaryDirectory().deleteOnExit()
-      zip.unzipTo(tmpDir)
+      future.failed.futureValue
 
-      zip.parent mustEqual workDir
-      val unzippedPdf = tmpDir / "iform.pdf"
-      unzippedPdf.contentAsString mustEqual "Hello, World!"
-
-      val unzippedMetadata = tmpDir / "metadata.xml"
-      val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
-      XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
+      eventually {
+        file.exists() mustBe false
+      }
     }
   }
 }
