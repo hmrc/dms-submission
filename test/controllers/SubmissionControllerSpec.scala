@@ -46,7 +46,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(mockSubmissionService, mockStubBehaviour)
+    Mockito.reset[Any](mockSubmissionService, mockStubBehaviour)
   }
 
   private val mockSubmissionService = mock[SubmissionService]

@@ -24,7 +24,6 @@ import models.submission._
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
-import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -48,14 +47,14 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
   private val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
 
   private val mockObjectStoreClient = mock[PlayObjectStoreClient]
-  private val mockFileService = mock[FileService]
+  private val mockZipService = mock[ZipService]
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(
+    Mockito.reset[Any](
       mockObjectStoreClient,
-      mockFileService,
+      mockZipService,
       mockSubmissionItemRepository
     )
   }
@@ -65,7 +64,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     val app = new GuiceApplicationBuilder()
       .overrides(
         bind[PlayObjectStoreClient].toInstance(mockObjectStoreClient),
-        bind[FileService].toInstance(mockFileService),
+        bind[ZipService].toInstance(mockZipService),
         bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
         bind[Clock].toInstance(clock)
       )
@@ -118,12 +117,10 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     )
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
-      val workDir = File.newTemporaryDirectory()
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
       val fileCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
 
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -138,20 +135,14 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       val capturedFile = fileCaptor.getValue
       capturedFile mustEqual Path.Directory("test-service").file(capturedItem.id)
-
-      eventually {
-        workDir.exists() mustEqual false
-      }
     }
 
     "must use the id in the request if it exists" in {
-      val workDir = File.newTemporaryDirectory()
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
       val id = "id"
       val requestWithCorrelationId = request.copy(id = Some(id))
 
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -164,48 +155,24 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
       capturedItem.id mustEqual id
       result mustEqual id
-
-      eventually {
-        workDir.exists() mustEqual false
-      }
-    }
-
-    "must fail when the file service fails to create a work directory" in {
-      when(mockFileService.workDir()).thenThrow(new RuntimeException())
-      service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
     "must fail when the fail service fails to create a zip file" in {
-      val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
-      eventually {
-        workDir.exists() mustEqual false
-      }
     }
 
     "must fail when object store fails" in {
-      val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
-      eventually {
-        workDir.exists() mustEqual false
-      }
     }
 
     "must fail when the call to mongo fails" in {
-      val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
-      eventually {
-        workDir.exists() mustEqual false
-      }
     }
   }
 }
