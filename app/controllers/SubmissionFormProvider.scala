@@ -17,20 +17,27 @@
 package controllers
 
 import models.submission.{SubmissionMetadata, SubmissionRequest}
+import play.api.Configuration
 import play.api.data.Form
 import play.api.data.Forms._
+import play.api.data.validation.{Constraint, Invalid, Valid}
 
+import java.net.URL
 import java.time.{LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
+import scala.util.{Failure, Success, Try}
 
 @Singleton
-class SubmissionFormProvider @Inject() () {
+class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
-  // TODO some validation to make sure callback urls are ok for us to call?
+  private val allowLocalhostCallbacks: Boolean =
+    configuration.get[Boolean]("allow-localhost-callbacks")
+
   val form: Form[SubmissionRequest] = Form(
     mapping(
       "correlationId" -> optional(text),
-      "callbackUrl" -> text,
+      "callbackUrl" -> text
+        .verifying(validateUrl),
       "metadata" -> mapping(
         "store" -> text
           .verifying("error.invalid", _.toBooleanOption.isDefined)
@@ -48,4 +55,19 @@ class SubmissionFormProvider @Inject() () {
       )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
     )(SubmissionRequest.apply)(SubmissionRequest.unapply)
   )
+
+  private def validateUrl: Constraint[String] =
+    Constraint { string =>
+      Try(new URL(string)) match {
+        case Success(url) =>
+          if (url.getHost.endsWith(".mdtp")) {
+            Valid
+          } else if (allowLocalhostCallbacks && url.getHost == "localhost") {
+            Valid
+          } else {
+            Invalid("callbackUrl.invalidHost")
+          }
+        case Failure(_) => Invalid("callbackUrl.invalid")
+      }
+    }
 }

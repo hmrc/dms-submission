@@ -91,7 +91,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
-              "callbackUrl" -> Seq("callbackUrl"),
+              "callbackUrl" -> Seq("http://localhost/callback"),
               "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
@@ -129,7 +129,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         businessArea = "businessArea"
       )
 
-      val expectedRequest = SubmissionRequest(None, "callbackUrl", expectedMetadata)
+      val expectedRequest = SubmissionRequest(None, "http://localhost/callback", expectedMetadata)
 
       val result = route(app, request).value
 
@@ -160,7 +160,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
-              "callbackUrl" -> Seq("callbackUrl"),
+              "callbackUrl" -> Seq("http://localhost/callback"),
               "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
@@ -230,7 +230,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .withMultipartFormDataBody(
           MultipartFormData(
             dataParts = Map(
-              "callbackUrl" -> Seq("callbackUrl"),
+              "callbackUrl" -> Seq("http://localhost/callback"),
               "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
