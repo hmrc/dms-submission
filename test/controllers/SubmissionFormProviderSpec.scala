@@ -21,18 +21,20 @@ import org.scalactic.source.Position
 import org.scalatest.OptionValues
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import play.api.Configuration
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
 
 class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionValues {
 
-  private val form = new SubmissionFormProvider().form
+  private val configuration = Configuration("allow-localhost-callbacks" -> false)
+  private val form = new SubmissionFormProvider(configuration).form
 
   private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
   private val completeRequest = SubmissionRequest(
     id = Some("correlationId"),
-    callbackUrl = "callbackUrl",
+    callbackUrl = "http://test-service.protected.mdtp/callback",
     metadata = SubmissionMetadata(
       store = false,
       source = "source",
@@ -49,7 +51,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   private val completeData = Map(
     "correlationId" -> "correlationId",
-    "callbackUrl" -> "callbackUrl",
+    "callbackUrl" -> "http://test-service.protected.mdtp/callback",
     "metadata.store" -> "false",
     "metadata.source" -> "source",
     "metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt),
@@ -79,6 +81,23 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "callbackUrl" - {
     behave like requiredField("callbackUrl")
+
+    "must fail if the value is not a valid url" in {
+      val boundField = form.bind(completeData + ("callbackUrl" -> "foobar"))("callbackUrl")
+      boundField.error.value.message mustEqual "callbackUrl.invalid"
+    }
+
+    "must fail if the domain doesn't end in .mdtp" in {
+      val boundField = form.bind(completeData + ("callbackUrl" -> "http://localhost/callback"))("callbackUrl")
+      boundField.error.value.message mustEqual "callbackUrl.invalidHost"
+    }
+
+    "must succeed when the domain is localhost, when `allow-localhost-callbacks` is enabled" in {
+      val configuration = Configuration("allow-localhost-callbacks" -> true)
+      val form = new SubmissionFormProvider(configuration).form
+      val boundField = form.bind(completeData + ("callbackUrl" -> "http://localhost/callback"))("callbackUrl")
+      boundField.hasErrors mustEqual false
+    }
   }
 
   "metadata.store" - {
@@ -96,6 +115,12 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   }
 
   "metadata.timeOfReceipt" - {
+
+    "must bind a time with nanos" in {
+      val timeOfReceipt = LocalDateTime.of(2020, 2, 1, 12, 30, 20, 1337)
+      val boundField = form.bind(completeData + ("metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)))
+      boundField.hasErrors mustEqual false
+    }
 
     behave like requiredField("metadata.timeOfReceipt")
 
