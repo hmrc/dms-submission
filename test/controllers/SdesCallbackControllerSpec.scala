@@ -43,7 +43,7 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset(
+    Mockito.reset[Any](
       mockSubmissionItemRepository
     )
   }

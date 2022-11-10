@@ -17,6 +17,7 @@
 package services
 
 import better.files.File
+import config.FileSystemExecutionContext
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
 import repositories.SubmissionItemRepository
@@ -35,16 +36,16 @@ class SubmissionService @Inject() (
                                     objectStoreClient: PlayObjectStoreClient,
                                     fileService: FileService,
                                     submissionItemRepository: SubmissionItemRepository,
-                                    clock: Clock
+                                    clock: Clock,
+                                    fileSystemExecutionContext: FileSystemExecutionContext
                                   )(implicit ec: ExecutionContext) extends Logging {
 
-  // TODO use separate blocking EC for file stuff
   def submit(request: SubmissionRequest, pdf: File, owner: String)(implicit hc: HeaderCarrier): Future[String] = {
     withWorkingDir { workDir =>
       val id = request.id.getOrElse(UUID.randomUUID().toString)
-      val zip = fileService.createZip(workDir, pdf, request.metadata, id)
       val path = Path.Directory(owner).file(id)
       for {
+        zip           <- fileService.createZip(workDir, pdf, request.metadata, id)
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
         item          =  createSubmissionItem(request, objectSummary, id, owner)
         _             <- submissionItemRepository.insert(item)
@@ -70,7 +71,7 @@ class SubmissionService @Inject() (
     )
 
   private def withWorkingDir[A](f: File => Future[A]): Future[A] = {
-    Future(fileService.workDir()).flatMap { workDir =>
+    fileService.workDir().flatMap { workDir =>
       val future = Future(f(workDir)).flatten
       future.onComplete { _ =>
         try {
@@ -79,7 +80,7 @@ class SubmissionService @Inject() (
         } catch { case e: Throwable =>
           logger.error(s"Failed to delete working dir at ${workDir.pathAsString}", e)
         }
-      }
+      }(fileSystemExecutionContext)
       future
     }
   }

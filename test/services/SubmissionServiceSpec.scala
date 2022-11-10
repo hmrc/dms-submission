@@ -122,8 +122,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
       val fileCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
 
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockFileService.workDir()).thenReturn(Future.successful(workDir))
+      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -150,8 +150,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       val id = "id"
       val requestWithCorrelationId = request.copy(id = Some(id))
 
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockFileService.workDir()).thenReturn(Future.successful(workDir))
+      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -171,13 +171,13 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     }
 
     "must fail when the file service fails to create a work directory" in {
-      when(mockFileService.workDir()).thenThrow(new RuntimeException())
+      when(mockFileService.workDir()).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
     "must fail when the fail service fails to create a zip file" in {
       val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
+      when(mockFileService.workDir()).thenReturn(Future.successful(workDir))
       when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
@@ -187,8 +187,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
     "must fail when object store fails" in {
       val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockFileService.workDir()).thenReturn(Future.successful(workDir))
+      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
       eventually {
@@ -198,8 +198,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
     "must fail when the call to mongo fails" in {
       val workDir = File.newTemporaryDirectory()
-      when(mockFileService.workDir()).thenReturn(workDir)
-      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(zip)
+      when(mockFileService.workDir()).thenReturn(Future.successful(workDir))
+      when(mockFileService.createZip(eqTo(workDir), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue

@@ -17,6 +17,7 @@
 package services
 
 import better.files.File
+import config.FileSystemExecutionContext
 import models.submission.SubmissionMetadata
 import play.api.Configuration
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
@@ -24,6 +25,7 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.Future
 import scala.xml.{Node, Utility, XML}
 
 @Singleton
@@ -31,7 +33,7 @@ class FileService @Inject() (
                               objectStoreClient: PlayObjectStoreClient,
                               configuration: Configuration,
                               clock: Clock
-                            ) {
+                            )(implicit ec: FileSystemExecutionContext) {
 
   private val format: String = configuration.get[String]("metadata.format")
   private val mimeType: String = configuration.get[String]("metadata.mimeType")
@@ -41,9 +43,11 @@ class FileService @Inject() (
 
   private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
 
-  def workDir(): File = File.newTemporaryDirectory(parent = Some(tmpDir))
+  def workDir(): Future[File] = Future {
+    File.newTemporaryDirectory(parent = Some(tmpDir))
+  }
 
-  def createZip(workDir: File, pdf: File, metadata: SubmissionMetadata, correlationId: String): File = {
+  def createZip(workDir: File, pdf: File, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
     pdf.copyTo(tmpDir / "iform.pdf")
     val metadataFile = tmpDir / "metadata.xml"

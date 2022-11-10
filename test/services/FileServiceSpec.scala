@@ -18,6 +18,7 @@ package services
 
 import better.files.File
 import models.submission.SubmissionMetadata
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import play.api.inject.bind
@@ -27,7 +28,7 @@ import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.io.Source
 import scala.xml.{Utility, XML}
 
-class FileServiceSpec extends AnyFreeSpec with Matchers {
+class FileServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
   private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 0, 0, 0, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
 
@@ -46,7 +47,7 @@ class FileServiceSpec extends AnyFreeSpec with Matchers {
 
   "workDir" - {
     "must create a directory within play's temporary directory" in {
-      val workDir = service.workDir().deleteOnExit()
+      val workDir = service.workDir().futureValue.deleteOnExit()
       workDir.path.toString must startWith (app.configuration.get[String]("play.temporaryFile.dir"))
     }
   }
@@ -70,7 +71,7 @@ class FileServiceSpec extends AnyFreeSpec with Matchers {
       val workDir = File.newTemporaryDirectory().deleteOnExit()
       val pdf = File.newTemporaryFile().writeText("Hello, World!")
 
-      val zip = service.createZip(workDir, pdf, metadata, correlationId)
+      val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
