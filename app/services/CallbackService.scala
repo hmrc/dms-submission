@@ -16,26 +16,37 @@
 
 package services
 
+import com.codahale.metrics.{MetricRegistry, Timer}
+import com.kenshoo.play.metrics.Metrics
 import connectors.CallbackConnector
 import logging.Logging
 import models.Done
-import models.submission.{QueryResult, SubmissionItemStatus}
+import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
 import repositories.SubmissionItemRepository
 
+import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
 
 @Singleton
 class CallbackService @Inject() (
                                   callbackConnector: CallbackConnector,
-                                  repository: SubmissionItemRepository
+                                  repository: SubmissionItemRepository,
+                                  clock: Clock,
+                                  metrics: Metrics
                                 )(implicit ec: ExecutionContext) extends Logging {
+
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
+
+  private val timer: Timer = metricRegistry.timer("submission.timer")
 
   def notifyOldestProcessedItem(): Future[QueryResult] = {
     repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Processed) { item =>
-      callbackConnector.notify(item).map { _ =>
+      val result = callbackConnector.notify(item).map { _ =>
         item.copy(status = SubmissionItemStatus.Completed)
       }
+      updateTimerForItem(item, result)
     }.recover { case e =>
       logger.error("Error notifying the callback url for an item", e)
       QueryResult.Found
@@ -50,9 +61,10 @@ class CallbackService @Inject() (
 
   def notifyOldestFailedItem(): Future[QueryResult] = {
     repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Failed) { item =>
-      callbackConnector.notify(item).map { _ =>
+      val result = callbackConnector.notify(item).map { _ =>
         item.copy(status = SubmissionItemStatus.Completed)
       }
+      updateTimerForItem(item, result)
     }.recover { case e =>
       logger.error("Error notifying the callback url for an item", e)
       QueryResult.Found
@@ -64,4 +76,13 @@ class CallbackService @Inject() (
       case QueryResult.Found    => notifyFailedItems()
       case QueryResult.NotFound => Future.successful(Done)
     }
+
+  private def updateTimerForItem(item: SubmissionItem, future: Future[SubmissionItem]): Future[SubmissionItem] = {
+    future.onComplete {
+      case Success(_) =>
+        timer.update(Duration.between(item.created, clock.instant()))
+      case _          => ()
+    }
+    future
+  }
 }

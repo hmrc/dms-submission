@@ -16,6 +16,7 @@
 
 package repositories
 
+import cats.implicits.toTraverseOps
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -63,6 +64,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     ),
     failureReason = None,
+    created = clock.instant().minus(1, ChronoUnit.DAYS),
     lastUpdated = clock.instant().minus(1, ChronoUnit.DAYS),
     sdesCorrelationId = "correlationId"
   )
@@ -313,6 +315,35 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       promise.failure(new RuntimeException())
       runningFuture.failed.futureValue
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
+    }
+  }
+
+  "countByStatus" - {
+
+    "must return the number of items for that particular status" in {
+
+      val item1 = randomItem
+      val item2 = randomItem
+      val item3 = randomItem.copy(status = SubmissionItemStatus.Processed)
+      val item4 = randomItem.copy(status = SubmissionItemStatus.Failed)
+      val item5 = randomItem.copy(status = SubmissionItemStatus.Forwarded)
+      val item6 = randomItem.copy(status = SubmissionItemStatus.Completed)
+
+      repository.countByStatus(SubmissionItemStatus.Submitted).futureValue mustEqual 0
+      repository.countByStatus(SubmissionItemStatus.Processed).futureValue mustEqual 0
+      repository.countByStatus(SubmissionItemStatus.Failed).futureValue mustEqual 0
+      repository.countByStatus(SubmissionItemStatus.Completed).futureValue mustEqual 0
+      repository.countByStatus(SubmissionItemStatus.Forwarded).futureValue mustEqual 0
+
+      List(item1, item2, item3, item4, item5, item6)
+        .traverse(repository.insert)
+        .futureValue
+
+      repository.countByStatus(SubmissionItemStatus.Submitted).futureValue mustEqual 2
+      repository.countByStatus(SubmissionItemStatus.Processed).futureValue mustEqual 1
+      repository.countByStatus(SubmissionItemStatus.Failed).futureValue mustEqual 1
+      repository.countByStatus(SubmissionItemStatus.Completed).futureValue mustEqual 1
+      repository.countByStatus(SubmissionItemStatus.Forwarded).futureValue mustEqual 1
     }
   }
 

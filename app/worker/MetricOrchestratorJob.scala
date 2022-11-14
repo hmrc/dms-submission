@@ -17,24 +17,25 @@
 package worker
 
 import logging.Logging
-import models.Done
 import org.quartz.{Job, JobExecutionContext}
-import services.CallbackService
+import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 @Singleton
-class FailedItemJob @Inject() (
-                                   service: CallbackService
-                                 )(implicit ec: ExecutionContext) extends Job with Logging {
+class MetricOrchestratorJob @Inject()(
+                                metricOrchestrator: MetricOrchestrator
+                              )(implicit ec: ExecutionContext) extends Job with Logging {
 
   override def execute(context: JobExecutionContext): Unit = {
     logger.debug("Starting job")
-    service.notifyFailedItems().onComplete {
-      case Success(Done) => logger.debug("Job completed")
-      case Failure(e)    => logger.error("Job failed", e)
-    }
+    metricOrchestrator.attemptMetricRefresh()
+      .map(_.log())
+      .onComplete {
+        case Success(_) => logger.debug("Job completed")
+        case Failure(e) => logger.error("Error updating orchestrated metrics", e)
+      }
   }
 }

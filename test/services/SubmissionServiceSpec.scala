@@ -112,6 +112,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
       failureReason = None,
+      created = clock.instant(),
       lastUpdated = clock.instant(),
       sdesCorrelationId = "sdesCorrelationId"
     )

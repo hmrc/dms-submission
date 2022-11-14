@@ -49,6 +49,10 @@ class SchedulerProvider @Inject() (
     configuration.get[Duration]("workers.failed-item-worker.interval")
       .toSeconds.toInt
 
+  private val metricOrchestratorInterval: Int =
+    configuration.get[Duration]("workers.metric-orchestrator-worker.interval")
+      .toSeconds.toInt
+
   private val factory: SchedulerFactory = new StdSchedulerFactory()
   private val scheduler: Scheduler = factory.getScheduler()
 
@@ -106,6 +110,20 @@ class SchedulerProvider @Inject() (
     .build()
   logger.info("Scheduling Failed Item job")
   scheduler.scheduleJob(failedItemJob, failedItemJobTrigger)
+
+  /*
+   * Metric Orchestrator Worker
+   */
+  private val metricOrchestratorJob = JobBuilder.newJob(classOf[MetricOrchestratorJob])
+    .withIdentity("metricOrchestratorJob")
+    .build()
+  private val metricOrchestratorJobTrigger = TriggerBuilder.newTrigger()
+    .withIdentity("metricOrchestratorJobTrigger")
+    .withSchedule(SimpleScheduleBuilder.repeatSecondlyForever(metricOrchestratorInterval))
+    .startNow()
+    .build()
+  logger.info("Scheduling Metric Orchestrator job")
+  scheduler.scheduleJob(metricOrchestratorJob, metricOrchestratorJobTrigger)
 
   logger.info(s"Starting scheduler in $schedulerInitialDelay seconds")
   scheduler.startDelayed(schedulerInitialDelay)

@@ -123,6 +123,9 @@ class SubmissionItemRepository @Inject() (
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 
+  def countByStatus(status: SubmissionItemStatus): Future[Long] =
+    collection.countDocuments(Filters.equal("status", status)).toFuture()
+
   def lockAndReplaceOldestItemByStatus(status: SubmissionItemStatus)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] =
     lockAndReplace(
       filter = Filters.equal("status", status),

@@ -29,6 +29,7 @@ final case class SubmissionItem(
                                  objectSummary: ObjectSummary,
                                  failureReason: Option[String],
                                  sdesCorrelationId: String,
+                                 created: Instant,
                                  lastUpdated: Instant,
                                  lockedAt: Option[Instant] = None
                                )
