@@ -34,7 +34,7 @@ The grant should be the following:
     {
       "resourceType": "dms-submission",
       "resourceLocation": "submit",
-      "actions": ["POST"]
+      "actions": ["WRITE"]
     }
   ]
 }

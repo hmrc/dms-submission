@@ -135,7 +135,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       result mustEqual capturedItem.id
 
       val capturedFile = fileCaptor.getValue
-      capturedFile mustEqual Path.Directory("test-service").file(capturedItem.id)
+      capturedFile mustEqual Path.Directory("sdes/test-service").file(capturedItem.id)
     }
 
     "must use the id in the request if it exists" in {
@@ -149,7 +149,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       val result = service.submit(requestWithCorrelationId, pdf, "test-service")(hc).futureValue
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("test-service").file(id)), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file(id)), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
 
       val capturedItem = itemCaptor.getValue
