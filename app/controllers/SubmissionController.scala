@@ -44,7 +44,7 @@ class SubmissionController @Inject() (
       resourceType = ResourceType("dms-submission"),
       resourceLocation = ResourceLocation("submit")
     ),
-    action = IAAction("POST")
+    action = IAAction("WRITE")
   )
 
   private val authorised = auth.authorizedAction(permission, Retrieval.username)

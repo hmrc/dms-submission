@@ -195,7 +195,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
             Json.obj(
               "resourceType" -> "dms-submission",
               "resourceLocation" -> "submit",
-              "actions" -> List("POST")
+              "actions" -> List("WRITE")
             )
           )
         )

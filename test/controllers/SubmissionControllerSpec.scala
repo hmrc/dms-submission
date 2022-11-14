@@ -59,7 +59,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       resourceType = ResourceType("dms-submission"),
       resourceLocation = ResourceLocation("submit")
     ),
-    action = IAAction("POST")
+    action = IAAction("WRITE")
   )
 
   private val app = GuiceApplicationBuilder()
