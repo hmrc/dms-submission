@@ -31,9 +31,9 @@ class FailedItemJob @Inject() (
                                  )(implicit ec: ExecutionContext) extends Job with Logging {
 
   override def execute(context: JobExecutionContext): Unit = {
-    logger.info("Starting job")
+    logger.debug("Starting job")
     service.notifyFailedItems().onComplete {
-      case Success(Done) => logger.info("Job completed")
+      case Success(Done) => logger.debug("Job completed")
       case Failure(e)    => logger.error("Job failed", e)
     }
   }
