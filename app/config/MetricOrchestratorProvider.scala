@@ -18,12 +18,13 @@ package config
 
 import com.kenshoo.play.metrics.Metrics
 import models.submission.SubmissionItemStatus
+import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
 import uk.gov.hmrc.mongo.metrix.{MetricOrchestrator, MetricRepository, MetricSource}
 
 import javax.inject.{Inject, Provider, Singleton}
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -31,10 +32,13 @@ class MetricOrchestratorProvider @Inject() (
                                              lockRepository: MongoLockRepository,
                                              metricRepository: MetricRepository,
                                              metrics: Metrics,
-                                             submissionItemRepository: SubmissionItemRepository
+                                             submissionItemRepository: SubmissionItemRepository,
+                                             configuration: Configuration
                                            ) extends Provider[MetricOrchestrator] {
 
-  private val lockService: LockService = LockService(lockRepository, lockId = "metrix-orchestrator", ttl = 1.hour)
+  private val lockTtl: Duration = configuration.get[Duration]("workers.metric-orchestrator-worker.lock-ttl")
+
+  private val lockService: LockService = LockService(lockRepository, lockId = "metrix-orchestrator", ttl = lockTtl)
 
   private val metricRegistry = metrics.defaultRegistry
 
