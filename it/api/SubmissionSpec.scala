@@ -128,7 +128,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     val id = UUID.randomUUID().toString
     val timeOfReceipt = LocalDateTime.now()
 
-    configureFailedCallback(s"dms-submission/test/$id")
+    configureFailedCallback(s"dms-submission/sdes/test/$id")
 
     val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
       .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
