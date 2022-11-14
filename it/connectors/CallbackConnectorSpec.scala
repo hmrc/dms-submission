@@ -56,6 +56,7 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
       failureReason = None,
+      created = clock.instant(),
       lastUpdated = clock.instant(),
       sdesCorrelationId = "sdesCorrelationId"
     )
