@@ -19,6 +19,8 @@ package controllers
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
+import com.codahale.metrics.{MetricRegistry, Timer}
+import com.kenshoo.play.metrics.Metrics
 import models.submission.{SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
@@ -28,6 +30,7 @@ import services.SubmissionService
 import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
+import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,8 +39,13 @@ class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
                                        submissionService: SubmissionService,
                                        submissionFormProvider: SubmissionFormProvider,
-                                       auth: BackendAuthComponents
+                                       auth: BackendAuthComponents,
+                                       clock: Clock,
+                                       metrics: Metrics
                                      )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
+
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
+  private val timer: Timer = metricRegistry.timer("submission-repsonse.timer")
 
   private val permission = Predicate.Permission(
     resource = Resource(
@@ -50,16 +58,18 @@ class SubmissionController @Inject() (
   private val authorised = auth.authorizedAction(permission, Retrieval.username)
 
   def submit = authorised.compose(Action(parse.multipartFormData(false))).async { implicit request =>
-    val result: EitherT[Future, NonEmptyChain[String], String] = (
-      EitherT.fromEither[Future](getSubmissionRequest(request.body)),
-      EitherT.fromEither[Future](getFile(request.body))
-    ).parTupled.flatMap { case (submissionRequest, file) =>
-      EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
+    withTimer {
+      val result: EitherT[Future, NonEmptyChain[String], String] = (
+        EitherT.fromEither[Future](getSubmissionRequest(request.body)),
+        EitherT.fromEither[Future](getFile(request.body))
+        ).parTupled.flatMap { case (submissionRequest, file) =>
+        EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
+      }
+      result.fold(
+        errors => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
+        correlationId => Accepted(Json.toJson(SubmissionResponse.Success(correlationId)))
+      )
     }
-    result.fold(
-      errors        => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
-      correlationId => Accepted(Json.toJson(SubmissionResponse.Success(correlationId)))
-    )
   }
 
   private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
@@ -74,4 +84,13 @@ class SubmissionController @Inject() (
       .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
 
   private def formatError(key: String, message: String): String = s"$key: $message"
+
+  private def withTimer[A](f: => Future[A]): Future[A] = {
+    val startTime = clock.instant()
+    val future = f
+    future.onComplete { _ =>
+      timer.update(Duration.between(startTime, clock.instant()))
+    }
+    future
+  }
 }

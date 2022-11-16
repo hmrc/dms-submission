@@ -38,8 +38,7 @@ class CallbackService @Inject() (
                                 )(implicit ec: ExecutionContext) extends Logging {
 
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
-
-  private val timer: Timer = metricRegistry.timer("submission.timer")
+  private val timer: Timer = metricRegistry.timer("complete-submission.timer")
 
   def notifyOldestProcessedItem(): Future[QueryResult] = {
     repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Processed) { item =>
