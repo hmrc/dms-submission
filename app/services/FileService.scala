@@ -42,7 +42,7 @@ class FileService @Inject() (
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   metricRegistry.register("temporary-directory.size", new Gauge[Long] {
-    override def getValue: Long = tmpDir.size() / 1000000L
+    override def getValue: Long = tmpDir.size()
   })
 
   def withWorkingDirectory[A](f: File => Future[A])(implicit ec: ExecutionContext): Future[A] =
