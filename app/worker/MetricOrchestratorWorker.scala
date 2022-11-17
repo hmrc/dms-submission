@@ -33,7 +33,7 @@ class MetricOrchestratorWorker @Inject() (
                                          )(implicit ec: ExecutionContext) extends Worker {
 
   private val interval: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.metric-orchestration-worker.interval")
+    configuration.get[FiniteDuration]("workers.metric-orchestrator-worker.interval")
 
   private val attemptRefresh =
     debug("Starting job") >> Stream.eval(IO.fromFuture(IO(orchestrator.attemptMetricRefresh().map(_.log())))).attempt.flatMap {

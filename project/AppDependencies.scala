@@ -16,8 +16,7 @@ object AppDependencies {
     "co.fs2"                  %% "fs2-core"                     % "3.3.0",
     "org.scala-lang.modules"  %% "scala-xml"                    % "1.3.0",
     "uk.gov.hmrc"             %% "internal-auth-client-play-28" % "1.2.0",
-    "uk.gov.hmrc.mongo"       %% "hmrc-mongo-metrix-play-28"    % hmrcMongoVersion,
-    "org.quartz-scheduler"    %  "quartz"                       % "2.3.2"
+    "uk.gov.hmrc.mongo"       %% "hmrc-mongo-metrix-play-28"    % hmrcMongoVersion
   )
 
   val test = Seq(
@@ -26,6 +25,7 @@ object AppDependencies {
     "org.scalatestplus"       %% "mockito-4-6"                   % "3.2.14.0",
     "org.typelevel"           %% "cats-effect-testkit"           % "3.4.0",
     "org.typelevel"           %% "cats-effect-testing-scalatest" % "1.5.0",
-    "com.github.tomakehurst"  %  "wiremock-standalone"           % "2.27.2"
+    "com.github.tomakehurst"  %  "wiremock-standalone"           % "2.27.2",
+    "com.vladsch.flexmark"    %  "flexmark-all"                  % "0.62.2"
   ).map(_ % "test, it")
 }

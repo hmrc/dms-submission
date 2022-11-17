@@ -16,12 +16,12 @@
 
 package config
 
-import org.quartz.Scheduler
+import cats.effect.unsafe.IORuntime
 import play.api.inject.Binding
 import play.api.{Configuration, Environment}
 import services.FileService
 import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
-import worker.SchedulerProvider
+import worker.{IORuntimeProvider, WorkerOrchestrator}
 
 import java.time.Clock
 
@@ -36,9 +36,10 @@ class Module extends play.api.inject.Module {
 
     Seq(
       bind[Clock].toInstance(Clock.systemUTC()),
-      bind[Scheduler].toProvider[SchedulerProvider].eagerly(),
       bind[FileService].toSelf.eagerly(),
-      bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly()
+      bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly(),
+      bind[IORuntime].toProvider[IORuntimeProvider],
+      bind[WorkerOrchestrator].toSelf.eagerly()
     ) ++ authTokenInitialiserBindings
   }
 }
