@@ -42,24 +42,25 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
 
   override def beforeEach(): Unit = {
-    super.beforeEach()
-    Mockito.reset[Any](
+    Mockito.reset(
       mockSubmissionItemRepository
     )
+    super.beforeEach()
   }
 
+  private val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
+
+  private val app = GuiceApplicationBuilder()
+    .configure(
+      "lockTtl" -> 30
+    )
+    .overrides(
+      bind[Clock].toInstance(clock),
+      bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
+    )
+    .build()
+
   "callback" - {
-
-    val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
-
-    val app = GuiceApplicationBuilder()
-      .configure(
-        "lockTtl" -> 30
-      )
-      .overrides(
-        bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
-      )
-      .build()
 
     val requestBody = NotificationCallback(
       notification = NotificationType.FileProcessed,
@@ -88,7 +89,6 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must return OK when the status is updated to FileReady" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReady)))
@@ -103,7 +103,6 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must return OK when the status is updated to FileReceived" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReceived)))

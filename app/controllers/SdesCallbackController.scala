@@ -53,8 +53,8 @@ class SdesCallbackController @Inject() (
             getNewItemStatus(request.body.notification).map { newStatus =>
               submissionItemRepository.update(item.sdesCorrelationId, newStatus, request.body.failureReason)
                 .map(_ => Ok)
-            }
-          }.getOrElse(Future.successful(Ok))
+            }.getOrElse(Future.successful(Ok))
+          }
         }.getOrElse {
           logger.warn(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification} but no matching submission was found")
           Future.successful(NotFound)

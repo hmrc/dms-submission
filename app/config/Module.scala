@@ -34,15 +34,19 @@ class Module extends play.api.inject.Module {
         Seq(bind[InternalAuthTokenInitialiser].to[InternalAuthTokenInitialiserImpl].eagerly())
       } else Seq(bind[InternalAuthTokenInitialiser].to[NoOpInternalAuthTokenInitialiser].eagerly())
 
+    val metricOrchestratorWorkerBindings: Seq[Binding[_]] =
+      if (configuration.get[Boolean]("metrics.enabled")) {
+        Seq(bind[MetricOrchestratorWorker].toSelf.eagerly())
+      } else Seq.empty
+
     Seq(
       bind[Clock].toInstance(Clock.systemUTC()),
       bind[FileService].toSelf.eagerly(),
       bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly(),
       bind[IORuntime].toProvider[IORuntimeProvider],
-      bind[MetricOrchestratorWorker].toSelf.eagerly(),
       bind[ProcessedItemWorker].toSelf.eagerly(),
       bind[FailedItemWorker].toSelf.eagerly(),
       bind[SdesNotificationWorker].toSelf.eagerly()
-    ) ++ authTokenInitialiserBindings
+    ) ++ authTokenInitialiserBindings ++ metricOrchestratorWorkerBindings
   }
 }
