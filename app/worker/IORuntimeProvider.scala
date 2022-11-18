@@ -16,20 +16,13 @@
 
 package worker
 
-import org.quartz.{Job, Scheduler}
-import org.quartz.spi.{JobFactory, TriggerFiredBundle}
-import play.api.inject.Injector
+import cats.effect.unsafe.{IORuntime, IORuntimeBuilder}
 
-import javax.inject.{Singleton, Inject}
+import javax.inject.{Singleton, Inject, Provider}
 
 @Singleton
-class GuiceJobFactory @Inject() (
-                                  injector: Injector
-                                ) extends JobFactory {
-
-  override def newJob(bundle: TriggerFiredBundle, scheduler: Scheduler): Job = {
-    val detail = bundle.getJobDetail
-    val clazz = detail.getJobClass
-    injector.instanceOf(clazz)
-  }
+class IORuntimeProvider @Inject() () extends Provider[IORuntime] {
+  // TODO, should this be using specific execution contexts?
+  //  Should they be configurable?
+  override def get(): IORuntime = IORuntimeBuilder().build()
 }

@@ -42,21 +42,25 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
 
   override def beforeEach(): Unit = {
-    super.beforeEach()
-    Mockito.reset[Any](
+    Mockito.reset(
       mockSubmissionItemRepository
     )
+    super.beforeEach()
   }
 
+  private val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
+
+  private val app = GuiceApplicationBuilder()
+    .configure(
+      "lockTtl" -> 30
+    )
+    .overrides(
+      bind[Clock].toInstance(clock),
+      bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
+    )
+    .build()
+
   "callback" - {
-
-    val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
-
-    val app = GuiceApplicationBuilder()
-      .overrides(
-        bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
-      )
-      .build()
 
     val requestBody = NotificationCallback(
       notification = NotificationType.FileProcessed,
@@ -85,7 +89,6 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must return OK when the status is updated to FileReady" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReady)))
@@ -100,7 +103,6 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     "must return OK when the status is updated to FileReceived" in {
 
       when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item)))
-      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
 
       val request = FakeRequest(routes.SdesCallbackController.callback)
         .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileReceived)))
@@ -140,6 +142,39 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       status(response) mustEqual OK
       verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Failed, Some("failure reason"))
+    }
+
+    "must retry when the item is locked" in {
+
+      val lockedItem = item.copy(lockedAt = Some(clock.instant()))
+
+      when(mockSubmissionItemRepository.get(any()))
+        .thenReturn(Future.successful(Some(lockedItem)))
+        .thenReturn(Future.successful(Some(item)))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
+
+      val request = FakeRequest(routes.SdesCallbackController.callback)
+        .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessed)))
+
+      val response = route(app, request).value
+
+      status(response) mustEqual OK
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
+    }
+
+    "must not have to retry when the lock has expired" in {
+      when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item.copy(lockedAt = Some(clock.instant().minusSeconds(30))))))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
+
+      val request = FakeRequest(routes.SdesCallbackController.callback)
+        .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessed)))
+
+      val response = route(app, request).value
+
+      status(response) mustEqual OK
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
     }
 
     "must return NOT_FOUND when there is no matching submission" in {

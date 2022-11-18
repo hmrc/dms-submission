@@ -16,12 +16,12 @@
 
 package config
 
-import org.quartz.Scheduler
+import cats.effect.unsafe.IORuntime
 import play.api.inject.Binding
 import play.api.{Configuration, Environment}
 import services.FileService
 import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
-import worker.SchedulerProvider
+import worker.{FailedItemWorker, IORuntimeProvider, MetricOrchestratorWorker, ProcessedItemWorker, SdesNotificationWorker}
 
 import java.time.Clock
 
@@ -34,11 +34,19 @@ class Module extends play.api.inject.Module {
         Seq(bind[InternalAuthTokenInitialiser].to[InternalAuthTokenInitialiserImpl].eagerly())
       } else Seq(bind[InternalAuthTokenInitialiser].to[NoOpInternalAuthTokenInitialiser].eagerly())
 
+    val metricOrchestratorWorkerBindings: Seq[Binding[_]] =
+      if (configuration.get[Boolean]("metrics.enabled")) {
+        Seq(bind[MetricOrchestratorWorker].toSelf.eagerly())
+      } else Seq.empty
+
     Seq(
       bind[Clock].toInstance(Clock.systemUTC()),
-      bind[Scheduler].toProvider[SchedulerProvider].eagerly(),
       bind[FileService].toSelf.eagerly(),
-      bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly()
-    ) ++ authTokenInitialiserBindings
+      bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly(),
+      bind[IORuntime].toProvider[IORuntimeProvider],
+      bind[ProcessedItemWorker].toSelf.eagerly(),
+      bind[FailedItemWorker].toSelf.eagerly(),
+      bind[SdesNotificationWorker].toSelf.eagerly()
+    ) ++ authTokenInitialiserBindings ++ metricOrchestratorWorkerBindings
   }
 }

@@ -17,6 +17,7 @@
 package services
 
 import better.files.File
+import better.files.File.VisitOptions
 import com.codahale.metrics.{Gauge, MetricRegistry}
 import com.kenshoo.play.metrics.Metrics
 import config.FileSystemExecutionContext
@@ -24,6 +25,8 @@ import logging.Logging
 import play.api.Configuration
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
+import java.io.IOException
+import java.nio.file.Files
 import java.time.Clock
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -40,10 +43,7 @@ class FileService @Inject() (
     .createDirectories()
 
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
-
-  metricRegistry.register("temporary-directory.size", new Gauge[Long] {
-    override def getValue: Long = tmpDir.size()
-  })
+  metricRegistry.register("temporary-directory.size", new DirectorySizeGauge(tmpDir))
 
   def withWorkingDirectory[A](f: File => Future[A])(implicit ec: ExecutionContext): Future[A] =
     workDir().flatMap { workDir =>
@@ -62,4 +62,21 @@ class FileService @Inject() (
   private def workDir(): Future[File] = Future {
     File.newTemporaryDirectory(parent = Some(tmpDir))
   }
+}
+
+final class DirectorySizeGauge(dir: File) extends Gauge[Long] with Logging {
+
+  // Manually walking and catching IOExceptions as betterfiles only catches FileNotFoundExceptions
+  override def getValue: Long =
+    dir
+      .walk()(VisitOptions.default)
+      .map { f =>
+        try {
+          Files.size(f.path)
+        } catch {
+          case e: IOException =>
+            logger.warn(s"Failed to read size of ${f.path}", e)
+            0L
+        }
+      }.sum
 }
