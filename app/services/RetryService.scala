@@ -25,6 +25,7 @@ import services.RetryService.BackoffStrategy
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.util.control.NonFatal
 
 @Singleton
 class RetryService @Inject() (
@@ -41,9 +42,10 @@ class RetryService @Inject() (
                 f: => Future[A],
                 delay: FiniteDuration = defaultDelay,
                 backoff: FiniteDuration => FiniteDuration = BackoffStrategy.constant,
-                maxAttempts: Int = defaultMaxAttempts
+                maxAttempts: Int = defaultMaxAttempts,
+                retriable: Throwable => Boolean = NonFatal.apply
               ): Future[A] =
-    Stream.retry[IO, A](IO.fromFuture(IO(f)), delay, backoff, maxAttempts)
+    Stream.retry[IO, A](IO.fromFuture(IO(f)), delay, backoff, maxAttempts, retriable)
       .compile.lastOrError.unsafeToFuture()
 }
 

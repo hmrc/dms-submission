@@ -53,6 +53,9 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
     val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
 
     val app = GuiceApplicationBuilder()
+      .configure(
+        "lockTtl" -> 30
+      )
       .overrides(
         bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
       )
@@ -140,6 +143,39 @@ class SdesCallbackControllerSpec extends AnyFreeSpec with Matchers with OptionVa
       status(response) mustEqual OK
       verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
       verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Failed, Some("failure reason"))
+    }
+
+    "must retry when the item is locked" in {
+
+      val lockedItem = item.copy(lockedAt = Some(clock.instant()))
+
+      when(mockSubmissionItemRepository.get(any()))
+        .thenReturn(Future.successful(Some(lockedItem)))
+        .thenReturn(Future.successful(Some(item)))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
+
+      val request = FakeRequest(routes.SdesCallbackController.callback)
+        .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessed)))
+
+      val response = route(app, request).value
+
+      status(response) mustEqual OK
+      verify(mockSubmissionItemRepository, times(2)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
+    }
+
+    "must not have to retry when the lock has expired" in {
+      when(mockSubmissionItemRepository.get(any())).thenReturn(Future.successful(Some(item.copy(lockedAt = Some(clock.instant().minusSeconds(30))))))
+      when(mockSubmissionItemRepository.update(any(), any(), any())).thenReturn(Future.successful(item))
+
+      val request = FakeRequest(routes.SdesCallbackController.callback)
+        .withJsonBody(Json.toJson(requestBody.copy(notification = NotificationType.FileProcessed)))
+
+      val response = route(app, request).value
+
+      status(response) mustEqual OK
+      verify(mockSubmissionItemRepository, times(1)).get(requestBody.correlationID)
+      verify(mockSubmissionItemRepository, times(1)).update(requestBody.correlationID, SubmissionItemStatus.Processed, None)
     }
 
     "must return NOT_FOUND when there is no matching submission" in {

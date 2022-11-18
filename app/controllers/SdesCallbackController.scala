@@ -18,46 +18,49 @@ package controllers
 
 import logging.Logging
 import models.sdes.{NotificationCallback, NotificationType}
-import models.submission.SubmissionItemStatus
+import models.submission.{SubmissionItem, SubmissionItemStatus}
 import play.api.Configuration
 import play.api.mvc.ControllerComponents
 import repositories.SubmissionItemRepository
+import services.RetryService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NoStackTrace
 
 @Singleton
 class SdesCallbackController @Inject() (
                                          override val controllerComponents: ControllerComponents,
                                          submissionItemRepository: SubmissionItemRepository,
                                          clock: Clock,
-                                         configuration: Configuration
+                                         configuration: Configuration,
+                                         retryService: RetryService
                                        )(implicit ec: ExecutionContext) extends BackendBaseController with Logging {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
 
   def callback = Action.async(parse.json[NotificationCallback]) { implicit request =>
     logger.info(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification}")
-    submissionItemRepository.get(request.body.correlationID).flatMap {
-      _.map { item =>
-        getNewItemStatus(request.body.notification).map { newStatus =>
-          if (item.lockedAt.isDefined) {
-            if (item.lockedAt.get.isAfter(clock.instant().minus(lockTtl))) {
-              logger.warn(s"correlationId: ${request.body.correlationID} was locked!")
-            } else {
-              logger.info(s"correlationId: ${request.body.correlationID} was locked, but the lock had expired")
+    retryService.retry(
+      submissionItemRepository.get(request.body.correlationID).flatMap {
+        _.map { item =>
+          if (isLocked(item)) {
+            logger.warn(s"correlationId: ${request.body.correlationID} was locked!")
+            Future.failed(SubmissionLockedException(item.sdesCorrelationId))
+          } else {
+            getNewItemStatus(request.body.notification).map { newStatus =>
+              submissionItemRepository.update(item.sdesCorrelationId, newStatus, request.body.failureReason)
+                .map(_ => Ok)
             }
-          }
-          submissionItemRepository.update(item.sdesCorrelationId, newStatus, request.body.failureReason)
-            .map(_ => Ok)
-        }.getOrElse(Future.successful(Ok))
-      }.getOrElse {
-        logger.warn(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification} but no matching submission was found")
-        Future.successful(NotFound)
-      }
-    }
+          }.getOrElse(Future.successful(Ok))
+        }.getOrElse {
+          logger.warn(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification} but no matching submission was found")
+          Future.successful(NotFound)
+        }
+      }, retriable = isSubmissionLockedException
+    )
   }
 
   private def getNewItemStatus(notificationType: NotificationType): Option[SubmissionItemStatus] =
@@ -66,4 +69,14 @@ class SdesCallbackController @Inject() (
       case NotificationType.FileProcessingFailure => Some(SubmissionItemStatus.Failed)
       case _                                      => None
     }
+
+  private def isLocked(item: SubmissionItem): Boolean =
+    item.lockedAt.exists(_.isAfter(clock.instant().minus(lockTtl)))
+
+  private def isSubmissionLockedException(e: Throwable): Boolean =
+    e.isInstanceOf[SubmissionLockedException]
+
+  final case class SubmissionLockedException(sdesCorrelationId: String) extends Throwable with NoStackTrace {
+    override def getMessage: String = s"Item with sdesCorrelationId $sdesCorrelationId was locked"
+  }
 }
