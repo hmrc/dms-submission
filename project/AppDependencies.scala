@@ -12,7 +12,6 @@ object AppDependencies {
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-28"           % "0.73.0",
     "org.typelevel"           %% "cats-core"                    % "2.8.0",
     "org.typelevel"           %% "cats-effect"                  % "3.4.0",
-    "com.github.cb372"        %% "cats-retry"                   % "3.1.0",
     "co.fs2"                  %% "fs2-core"                     % "3.3.0",
     "org.scala-lang.modules"  %% "scala-xml"                    % "1.3.0",
     "uk.gov.hmrc"             %% "internal-auth-client-play-28" % "1.2.0",

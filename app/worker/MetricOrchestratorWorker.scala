@@ -16,31 +16,26 @@
 
 package worker
 
-import cats.effect.IO
-import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
-import fs2.Stream
-import models.Done
 import play.api.Configuration
+import play.api.inject.ApplicationLifecycle
+import services.SchedulerService
+import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
 
-import javax.inject.{Singleton, Inject}
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 @Singleton
-class MetricOrchestratorWorker @Inject() (
-                                           configuration: Configuration,
-                                           orchestrator: MetricOrchestrator
-                                         )(implicit ec: ExecutionContext) extends Worker {
+class MetricOrchestratorWorker @Inject()(
+                                          configuration: Configuration,
+                                          schedulerService: SchedulerService,
+                                          metricOrchestrator: MetricOrchestrator,
+                                          lifecycle: ApplicationLifecycle
+                                        )(implicit ec: ExecutionContext) {
 
-  private val interval: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.metric-orchestrator-worker.interval")
+  private val interval = configuration.get[FiniteDuration]("workers.metric-orchestrator-worker.interval")
 
-  private val attemptRefresh =
-    debug("Starting job") >> Stream.eval(IO.fromFuture(IO(orchestrator.attemptMetricRefresh().map(_.log())))).attempt.flatMap {
-      case Right(_) => debug("Job completed") >> Stream.emit(Done)
-      case Left(e) => error("Error updating orchestrated metrics", e) >> Stream.empty
-    }
+  private val (_, cancel) = schedulerService.schedule(interval)(metricOrchestrator.attemptMetricRefresh())
 
-  val stream: Stream[IO, Done] =
-    doRepeatedlyStartingNow(attemptRefresh, interval)
+  lifecycle.addStopHook(cancel)
 }

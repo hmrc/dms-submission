@@ -16,34 +16,25 @@
 
 package worker
 
-import cats.effect.IO
-import fs2.Stream
-import models.Done
 import play.api.Configuration
-import services.CallbackService
+import play.api.inject.ApplicationLifecycle
+import services.{CallbackService, SchedulerService}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 
 @Singleton
-class FailedItemWorker @Inject() (
-                                   configuration: Configuration,
-                                   service: CallbackService
-                                 ) extends Worker {
+class FailedItemWorker @Inject()(
+                                  configuration: Configuration,
+                                  callbackService: CallbackService,
+                                  schedulerService: SchedulerService,
+                                  lifecycle: ApplicationLifecycle
+                                ) {
 
-  private val interval: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.failed-item-worker.interval")
+  private val interval = configuration.get[FiniteDuration]("workers.failed-item-worker.interval")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
 
-  private val initialDelay: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.initial-delay")
+  private val (_, cancel) = schedulerService.schedule(interval, initialDelay)(callbackService.notifyFailedItems())
 
-  private val notifyFailedItems: Stream[IO, Done] = {
-    debug("Job starting") >> Stream.eval(IO.fromFuture(IO(service.notifyFailedItems()))).attempt.flatMap {
-      case Right(_) => debug("Job completed") >> Stream.emit(Done)
-      case Left(e)  => error("Job failed", e) >> Stream.empty
-    }
-  }
-
-  val stream: Stream[IO, Done] =
-    wait(initialDelay) >> doRepeatedlyStartingNow(notifyFailedItems, interval)
+  lifecycle.addStopHook(cancel)
 }

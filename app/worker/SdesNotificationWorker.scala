@@ -16,34 +16,25 @@
 
 package worker
 
-import cats.effect.IO
-import fs2.Stream
-import models.Done
 import play.api.Configuration
-import services.SdesService
+import play.api.inject.ApplicationLifecycle
+import services.{SchedulerService, SdesService}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 
 @Singleton
-class SdesNotificationWorker @Inject() (
-                                         configuration: Configuration,
-                                         service: SdesService
-                                       ) extends Worker {
+class SdesNotificationWorker @Inject()(
+                                        configuration: Configuration,
+                                        sdesService: SdesService,
+                                        schedulerService: SchedulerService,
+                                        lifecycle: ApplicationLifecycle
+                                      ) {
 
-  private val interval: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.sdes-notification-worker.interval")
+  private val interval = configuration.get[FiniteDuration]("workers.sdes-notification-worker.interval")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
 
-  private val initialDelay: FiniteDuration =
-    configuration.get[FiniteDuration]("workers.initial-delay")
+  private val (_, cancel) = schedulerService.schedule(interval, initialDelay)(sdesService.notifySubmittedItems())
 
-  private val notifySubmittedItems: Stream[IO, Done] = {
-    debug("Starting job") >> Stream.eval(IO.fromFuture(IO(service.notifySubmittedItems()))).attempt.flatMap {
-      case Right(_) => debug("Job completed") >> Stream.emit(Done)
-      case Left(e)  => error("Job failed", e) >> Stream.empty
-    }
-  }
-
-  val stream: Stream[IO, Done] =
-    wait(initialDelay) >> doRepeatedlyStartingNow(notifySubmittedItems, interval)
+  lifecycle.addStopHook(cancel)
 }

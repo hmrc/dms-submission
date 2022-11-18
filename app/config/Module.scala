@@ -21,7 +21,7 @@ import play.api.inject.Binding
 import play.api.{Configuration, Environment}
 import services.FileService
 import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
-import worker.{IORuntimeProvider, WorkerOrchestrator}
+import worker.{FailedItemWorker, IORuntimeProvider, MetricOrchestratorWorker, ProcessedItemWorker, SdesNotificationWorker}
 
 import java.time.Clock
 
@@ -39,7 +39,10 @@ class Module extends play.api.inject.Module {
       bind[FileService].toSelf.eagerly(),
       bind[MetricOrchestrator].toProvider[MetricOrchestratorProvider].eagerly(),
       bind[IORuntime].toProvider[IORuntimeProvider],
-      bind[WorkerOrchestrator].toSelf.eagerly()
+      bind[MetricOrchestratorWorker].toSelf.eagerly(),
+      bind[ProcessedItemWorker].toSelf.eagerly(),
+      bind[FailedItemWorker].toSelf.eagerly(),
+      bind[SdesNotificationWorker].toSelf.eagerly()
     ) ++ authTokenInitialiserBindings
   }
 }
