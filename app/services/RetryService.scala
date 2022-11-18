@@ -20,15 +20,16 @@ import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import fs2.Stream
 import play.api.Configuration
+import services.RetryService.BackoffStrategy
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class RetryService @Inject() (
                                configuration: Configuration
-                             )(implicit runtime: IORuntime, ec: ExecutionContext) {
+                             )(implicit runtime: IORuntime) {
 
   private val defaultDelay: FiniteDuration =
     configuration.get[FiniteDuration]("retry.delay")
@@ -36,7 +37,20 @@ class RetryService @Inject() (
   private val defaultMaxAttempts: Int =
     configuration.get[Int]("retry.max-attempts")
 
-  def retry[A](f: => Future[A], delay: FiniteDuration = defaultDelay, maxAttempts: Int = defaultMaxAttempts): Future[A] =
-    Stream.retry[IO, A](IO.fromFuture(IO(f)), delay, identity, maxAttempts)
+  def retry[A](
+                f: => Future[A],
+                delay: FiniteDuration = defaultDelay,
+                backoff: FiniteDuration => FiniteDuration = BackoffStrategy.constant,
+                maxAttempts: Int = defaultMaxAttempts
+              ): Future[A] =
+    Stream.retry[IO, A](IO.fromFuture(IO(f)), delay, backoff, maxAttempts)
       .compile.lastOrError.unsafeToFuture()
+}
+
+object RetryService {
+
+  object BackoffStrategy {
+    val constant: FiniteDuration => FiniteDuration = identity
+    val exponential: FiniteDuration => FiniteDuration = _ * 2
+  }
 }
