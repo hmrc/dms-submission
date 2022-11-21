@@ -2,3 +2,5 @@
 
 POST       /submit                       controllers.SubmissionController.submit
 POST       /sdes/callback                controllers.SdesCallbackController.callback
+
+GET        /:owner/submissions           controllers.SubmissionAdminController.list(owner: String)
