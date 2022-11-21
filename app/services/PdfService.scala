@@ -14,8 +14,25 @@
  * limitations under the License.
  */
 
-package models
+package services
 
-import better.files._
+import better.files.File
+import config.FileSystemExecutionContext
+import models.Pdf
+import org.apache.pdfbox.pdmodel.PDDocument
 
-final case class Pdf(file: File, numberOfPages: Int)
+import javax.inject.{Singleton, Inject}
+import scala.concurrent.Future
+
+@Singleton
+class PdfService @Inject() ()(implicit ec: FileSystemExecutionContext) {
+
+  def getPdf(file: File): Future[Pdf] = Future {
+    val document = PDDocument.load(file.path.toFile)
+    try {
+      Pdf(file, document.getNumberOfPages)
+    } finally {
+      document.close()
+    }
+  }
+}
