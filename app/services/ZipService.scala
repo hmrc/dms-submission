@@ -20,11 +20,10 @@ import better.files.File
 import config.FileSystemExecutionContext
 import models.Pdf
 import models.submission.SubmissionMetadata
-import org.apache.pdfbox.pdmodel.PDDocument
 import play.api.Configuration
 
-import java.time.{Clock, LocalDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
+import java.time.{Clock, LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.Future
 import scala.xml.{Node, Utility, XML}

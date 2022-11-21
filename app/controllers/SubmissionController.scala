@@ -27,10 +27,11 @@ import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
 import play.api.libs.json.Json
 import play.api.mvc.{ControllerComponents, MultipartFormData}
-import services.SubmissionService
+import services.{PdfService, SubmissionService}
 import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
+import java.io.IOException
 import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -39,6 +40,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class SubmissionController @Inject() (
                                        override val controllerComponents: ControllerComponents,
                                        submissionService: SubmissionService,
+                                       pdfService: PdfService,
                                        submissionFormProvider: SubmissionFormProvider,
                                        auth: BackendAuthComponents,
                                        clock: Clock,
@@ -62,7 +64,7 @@ class SubmissionController @Inject() (
     withTimer {
       val result: EitherT[Future, NonEmptyChain[String], String] = (
         EitherT.fromEither[Future](getSubmissionRequest(request.body)),
-        EitherT.fromEither[Future](getPdf(request.body))
+        getPdf(request.body)
         ).parTupled.flatMap { case (submissionRequest, file) =>
         EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
       }
@@ -79,15 +81,21 @@ class SubmissionController @Inject() (
       _.rightNec[String]
     )
 
-  private def getPdf(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, Pdf] =
+  private def getPdf(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherT[Future, NonEmptyChain[String], Pdf] =
     for {
-      file <- formData
-        .file("form")
-        .map(file => File(file.ref))
-        .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
-      pdf  <- Pdf(file)
-        .toEither
-        .leftMap(_ => NonEmptyChain.one(formatError("form", Messages("error.pdf.invalid"))))
+      file <- EitherT.fromEither[Future] {
+        formData
+          .file("form")
+          .map(file => File(file.ref))
+          .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
+        }
+      pdf <- EitherT[Future, NonEmptyChain[String], Pdf] {
+        pdfService.getPdf(file)
+          .map(Right(_))
+          .recover[EitherNec[String, Pdf]] { case _: IOException =>
+            formatError("form", Messages("error.pdf.invalid")).leftNec
+          }
+      }
     } yield pdf
 
   private def formatError(key: String, message: String): String = s"$key: $message"
