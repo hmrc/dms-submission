@@ -21,6 +21,7 @@ import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
 import com.codahale.metrics.{MetricRegistry, Timer}
 import com.kenshoo.play.metrics.Metrics
+import models.Pdf
 import models.submission.{SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
@@ -61,7 +62,7 @@ class SubmissionController @Inject() (
     withTimer {
       val result: EitherT[Future, NonEmptyChain[String], String] = (
         EitherT.fromEither[Future](getSubmissionRequest(request.body)),
-        EitherT.fromEither[Future](getFile(request.body))
+        EitherT.fromEither[Future](getPdf(request.body))
         ).parTupled.flatMap { case (submissionRequest, file) =>
         EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
       }
@@ -78,10 +79,16 @@ class SubmissionController @Inject() (
       _.rightNec[String]
     )
 
-  private def getFile(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, File] =
-    formData.file("form")
-      .map(file => File(file.ref))
-      .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
+  private def getPdf(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, Pdf] =
+    for {
+      file <- formData
+        .file("form")
+        .map(file => File(file.ref))
+        .toRight(NonEmptyChain.one(formatError("form", Messages("error.required"))))
+      pdf  <- Pdf(file)
+        .toEither
+        .leftMap(_ => NonEmptyChain.one(formatError("form", Messages("error.pdf.invalid"))))
+    } yield pdf
 
   private def formatError(key: String, message: String): String = s"$key: $message"
 

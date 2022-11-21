@@ -17,6 +17,7 @@
 package services
 
 import better.files.File
+import models.Pdf
 import models.submission.SubmissionMetadata
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -70,7 +71,8 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
         businessArea = "businessArea"
       )
       val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdf = File.newTemporaryFile().writeByteArray(pdfBytes)
+      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
+      val pdf = Pdf(pdfFile, 4)
 
       val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue
 
@@ -79,7 +81,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
       zip.parent mustEqual workDir
       val unzippedPdf = tmpDir / "iform.pdf"
-      unzippedPdf.isSameContentAs(pdf) mustBe true
+      unzippedPdf.isSameContentAs(pdfFile) mustBe true
 
       val unzippedMetadata = tmpDir / "metadata.xml"
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))

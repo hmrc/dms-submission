@@ -19,7 +19,7 @@ package services
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import better.files.File
-import models.Done
+import models.{Done, Pdf}
 import models.submission._
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{verify, when}
@@ -86,9 +86,10 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     )
     val request = SubmissionRequest(None, "callbackUrl", metadata)
 
-    val pdf = File.newTemporaryFile()
+    val pdfFile = File.newTemporaryFile()
       .deleteOnExit()
       .write("Hello, World!")
+    val pdf = Pdf(pdfFile, 4)
     val zip = File.newTemporaryFile()
       .deleteOnExit()
       .write("Some bytes")

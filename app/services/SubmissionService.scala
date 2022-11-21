@@ -18,6 +18,7 @@ package services
 
 import better.files.File
 import config.FileSystemExecutionContext
+import models.Pdf
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
 import repositories.SubmissionItemRepository
@@ -41,7 +42,7 @@ class SubmissionService @Inject() (
                                     fileSystemExecutionContext: FileSystemExecutionContext
                                   )(implicit ec: ExecutionContext) extends Logging {
 
-  def submit(request: SubmissionRequest, pdf: File, owner: String)(implicit hc: HeaderCarrier): Future[String] = {
+  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] = {
     fileService.withWorkingDirectory { workDir =>
       val id = request.id.getOrElse(UUID.randomUUID().toString)
       val path = Path.Directory(s"sdes/$owner").file(id)

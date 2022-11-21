@@ -18,6 +18,7 @@ package services
 
 import better.files.File
 import config.FileSystemExecutionContext
+import models.Pdf
 import models.submission.SubmissionMetadata
 import org.apache.pdfbox.pdmodel.PDDocument
 import play.api.Configuration
@@ -40,12 +41,11 @@ class ZipService @Inject() (
 
   private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
 
-  def createZip(workDir: File, pdf: File, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
+  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    pdf.copyTo(tmpDir / "iform.pdf")
-    val numberOfPages = PDDocument.load(pdf.path.toFile).getNumberOfPages
+    pdf.file.copyTo(tmpDir / "iform.pdf")
     val metadataFile = tmpDir / "metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, numberOfPages, correlationId)), xmlDecl = true)
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, correlationId)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }
