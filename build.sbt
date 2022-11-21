@@ -17,8 +17,17 @@ lazy val microservice = Project("dms-submission", file("."))
     buildInfoPackage := "buildinfo"
   )
   .settings(publishingSettings: _*)
+  .settings(inConfig(Test)(testSettings): _*)
   .configs(IntegrationTest)
   .settings(integrationTestSettings(): _*)
+  .settings(inConfig(IntegrationTest)(itSettings): _*)
   .settings(resolvers += Resolver.jcenterRepo)
   .settings(CodeCoverageSettings.settings: _*)
 
+lazy val testSettings: Seq[Def.Setting[_]] = Seq(
+  unmanagedResourceDirectories += baseDirectory.value / "test-utils" / "resources"
+)
+
+lazy val itSettings: Seq[Def.Setting[_]] = Seq(
+  unmanagedResourceDirectories += baseDirectory.value / "test-utils" / "resources"
+)

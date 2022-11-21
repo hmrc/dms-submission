@@ -97,7 +97,6 @@ The `dms-submission/submit` endpoint accepts a request with a `Multipart/Form-Da
 | metadata.source             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
 | metadata.timeOfReceipt      | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | Timestamp |
 | metadata.formId             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.numberOfPages      | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | Int       |
 | metadata.customerId         | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
 | metadata.submissionMark     | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
 | metadata.casKey             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
@@ -118,7 +117,6 @@ httpClient.url("http://localhost:8222/dms-submission/submit")
       DataPart("metadata.source", "<MY_SERVICE>"),
       DataPart("metadata.timeOfReceipt", DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)),
       DataPart("metadata.formId", "formId"),
-      DataPart("metadata.numberOfPages", "1"),
       DataPart("metadata.customerId", "customerId"),
       DataPart("metadata.submissionMark", "submissionMark"),
       DataPart("metadata.casKey", "casKey"),

@@ -18,17 +18,17 @@ package services
 
 import better.files.File
 import models.submission.SubmissionMetadata
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.io.Source
 import scala.xml.{Utility, XML}
 
-class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
+class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience {
 
   private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 0, 0, 0, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
 
@@ -45,6 +45,15 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
   private val service = app.injector.instanceOf[ZipService]
 
+  private val pdfBytes: Array[Byte] = {
+    val stream = getClass.getResourceAsStream("/test.pdf")
+    try {
+      stream.readAllBytes()
+    } finally {
+      stream.close()
+    }
+  }
+
   "createZip" - {
 
     "must create a zip with the right contents in the work dir" in {
@@ -54,7 +63,6 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
         source = "source",
         timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0, 0).toInstant(ZoneOffset.UTC),
         formId = "formId",
-        numberOfPages = 1,
         customerId = "customerId",
         submissionMark = "submissionMark",
         casKey = "casKey",
@@ -62,7 +70,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
         businessArea = "businessArea"
       )
       val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdf = File.newTemporaryFile().writeText("Hello, World!")
+      val pdf = File.newTemporaryFile().writeByteArray(pdfBytes)
 
       val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue
 
@@ -71,7 +79,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
       zip.parent mustEqual workDir
       val unzippedPdf = tmpDir / "iform.pdf"
-      unzippedPdf.contentAsString mustEqual "Hello, World!"
+      unzippedPdf.isSameContentAs(pdf) mustBe true
 
       val unzippedMetadata = tmpDir / "metadata.xml"
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))

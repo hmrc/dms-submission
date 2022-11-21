@@ -48,12 +48,11 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
           .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
           .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
         "formId" -> text,
-        "numberOfPages" -> number,
         "customerId" -> text,
         "submissionMark" -> text,
         "casKey" -> text,
         "classificationType" -> text,
-        "businessArea" -> text
+        "businessArea" -> text,
       )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
     )(SubmissionRequest.apply)(SubmissionRequest.unapply)
   )

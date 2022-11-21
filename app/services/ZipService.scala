@@ -19,6 +19,7 @@ package services
 import better.files.File
 import config.FileSystemExecutionContext
 import models.submission.SubmissionMetadata
+import org.apache.pdfbox.pdmodel.PDDocument
 import play.api.Configuration
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
@@ -42,13 +43,14 @@ class ZipService @Inject() (
   def createZip(workDir: File, pdf: File, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
     pdf.copyTo(tmpDir / "iform.pdf")
+    val numberOfPages = PDDocument.load(pdf.path.toFile).getNumberOfPages
     val metadataFile = tmpDir / "metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, correlationId)), xmlDecl = true)
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, numberOfPages, correlationId)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(metadata: SubmissionMetadata, correlationId: String): Node =
+  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, correlationId: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
@@ -66,7 +68,7 @@ class ZipService @Inject() (
           createAttribute("time_xml_created", "time", dateTimeFormatter.format(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))),
           createAttribute("submission_reference", "string", correlationId),
           createAttribute("form_id", "string", metadata.formId),
-          createAttribute("number_pages", "integer", metadata.numberOfPages.toString),
+          createAttribute("number_pages", "integer", numberOfPages.toString),
           createAttribute("source", "string", metadata.source),
           createAttribute("customer_id", "string", metadata.customerId),
           createAttribute("submission_mark", "string", metadata.submissionMark),
