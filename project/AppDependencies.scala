@@ -15,7 +15,8 @@ object AppDependencies {
     "co.fs2"                  %% "fs2-core"                     % "3.3.0",
     "org.scala-lang.modules"  %% "scala-xml"                    % "1.3.0",
     "uk.gov.hmrc"             %% "internal-auth-client-play-28" % "1.2.0",
-    "uk.gov.hmrc.mongo"       %% "hmrc-mongo-metrix-play-28"    % hmrcMongoVersion
+    "uk.gov.hmrc.mongo"       %% "hmrc-mongo-metrix-play-28"    % hmrcMongoVersion,
+    "org.apache.pdfbox"       %  "pdfbox"                       % "2.0.27"
   )
 
   val test = Seq(

@@ -73,6 +73,16 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   override protected implicit lazy val runningServer: RunningServer =
     FixedPortTestServerFactory.start(app)
 
+  private val pdfBytes: ByteString = {
+    val stream = getClass.getResourceAsStream("/test.pdf")
+    try {
+      ByteString(stream.readAllBytes())
+    } finally {
+      stream.close()
+    }
+  }
+
+
   "Successful submissions must return ACCEPTED and receive callbacks confirming files have been processed" in {
 
     server.stubFor(
@@ -91,7 +101,6 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
           DataPart("metadata.source", "api-tests"),
           DataPart("metadata.timeOfReceipt", DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)),
           DataPart("metadata.formId", "formId"),
-          DataPart("metadata.numberOfPages", "1"),
           DataPart("metadata.customerId", "customerId"),
           DataPart("metadata.submissionMark", "submissionMark"),
           DataPart("metadata.casKey", "casKey"),
@@ -101,7 +110,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
             key = "form",
             filename = "form.pdf",
             contentType = Some("application/octet-stream"),
-            ref = Source.single(ByteString("Hello, World!")),
+            ref = Source.single(pdfBytes),
             fileSize = 0
           )
         ))
@@ -140,7 +149,6 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
           DataPart("metadata.source", "api-tests"),
           DataPart("metadata.timeOfReceipt", DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)),
           DataPart("metadata.formId", "formId"),
-          DataPart("metadata.numberOfPages", "1"),
           DataPart("metadata.customerId", "customerId"),
           DataPart("metadata.submissionMark", "submissionMark"),
           DataPart("metadata.casKey", "casKey"),
@@ -150,7 +158,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
             key = "form",
             filename = "form.pdf",
             contentType = Some("application/octet-stream"),
-            ref = Source.single(ByteString("Hello, World!")),
+            ref = Source.single(pdfBytes),
             fileSize = 0
           )
         ))

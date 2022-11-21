@@ -40,7 +40,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       source = "source",
       timeOfReceipt = timeOfReceipt.toInstant(ZoneOffset.UTC),
       formId = "formId",
-      numberOfPages = 1,
       customerId = "customerId",
       submissionMark = "submissionMark",
       casKey = "casKey",
@@ -56,7 +55,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
     "metadata.source" -> "source",
     "metadata.timeOfReceipt" -> DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt),
     "metadata.formId" -> "formId",
-    "metadata.numberOfPages" -> "1",
     "metadata.customerId" -> "customerId",
     "metadata.submissionMark" -> "submissionMark",
     "metadata.casKey" -> "casKey",
@@ -132,16 +130,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "metadata.formId" - {
     behave like requiredField("metadata.formId")
-  }
-
-  "metadata.numberOfPages" - {
-
-    behave like requiredField("metadata.numberOfPages")
-
-    "must fail if it is invalid" in {
-      val boundField = form.bind(Map("metadata.numberOfPages" -> "foobar"))("metadata.numberOfPages")
-      boundField.hasErrors mustEqual true
-    }
   }
 
   "metadata.customerId" - {
