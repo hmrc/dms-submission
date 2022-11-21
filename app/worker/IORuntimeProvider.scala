@@ -17,12 +17,22 @@
 package worker
 
 import cats.effect.unsafe.{IORuntime, IORuntimeBuilder}
+import config.BlockingExecutionContext
 
-import javax.inject.{Singleton, Inject, Provider}
+import javax.inject.{Inject, Provider, Singleton}
+import scala.concurrent.ExecutionContext
 
 @Singleton
-class IORuntimeProvider @Inject() () extends Provider[IORuntime] {
-  // TODO, should this be using specific execution contexts?
-  //  Should they be configurable?
-  override def get(): IORuntime = IORuntimeBuilder().build()
+class IORuntimeProvider @Inject() (
+                                    defaultEc: ExecutionContext,
+                                    blockingEc: BlockingExecutionContext
+                                  ) extends Provider[IORuntime] {
+
+  private val doNothing: () => Unit =
+    () => ()
+
+  override def get(): IORuntime = IORuntimeBuilder()
+    .setCompute(defaultEc, doNothing)
+    .setBlocking(blockingEc, doNothing)
+    .build()
 }
