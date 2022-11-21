@@ -123,6 +123,10 @@ class SubmissionItemRepository @Inject() (
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 
+  def list(owner: String): Future[Seq[SubmissionItem]] =
+    collection.find(Filters.equal("owner", owner))
+      .toFuture
+
   def countByStatus(status: SubmissionItemStatus): Future[Long] =
     collection.countDocuments(Filters.equal("status", status)).toFuture()
 
