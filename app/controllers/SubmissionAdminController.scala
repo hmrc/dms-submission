@@ -20,6 +20,8 @@ import models.SubmissionSummary
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
+import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType}
+import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.Inject
@@ -27,10 +29,22 @@ import scala.concurrent.ExecutionContext
 
 class SubmissionAdminController @Inject()(
                                            override val controllerComponents: ControllerComponents,
-                                           submissionItemRepository: SubmissionItemRepository
+                                           submissionItemRepository: SubmissionItemRepository,
+                                           auth: BackendAuthComponents
                                          )(implicit ec: ExecutionContext) extends BackendBaseController {
 
-  def list(owner: String): Action[AnyContent] = Action.async { implicit request =>
+  private val read = IAAction("READ")
+
+  private val authorised = (owner: String, action: IAAction) =>
+    auth.authorizedAction(Permission(
+      Resource(
+        ResourceType("dms-submission"),
+        ResourceLocation(owner)
+      ),
+      action
+    ))
+
+  def list(owner: String): Action[AnyContent] = authorised(owner, read).async { implicit request =>
     submissionItemRepository.list(owner).map {
       _.map(SubmissionSummary.apply)
     }.map(items => Ok(Json.toJson(items)))

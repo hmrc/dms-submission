@@ -18,9 +18,9 @@ package controllers
 
 import models.SubmissionSummary
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{never, verify, when}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.freespec.AnyFreeSpec
@@ -29,13 +29,17 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
-import play.api.test.FakeRequest
+import play.api.test.{FakeRequest, Helpers}
 import play.api.test.Helpers._
 import repositories.SubmissionItemRepository
+import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType, Retrieval}
+import uk.gov.hmrc.internalauth.client.Predicate.Permission
+import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant, ZoneOffset}
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class SubmissionAdminControllerSpec
   extends AnyFreeSpec
@@ -48,16 +52,24 @@ class SubmissionAdminControllerSpec
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
 
   override def beforeEach(): Unit = {
-    Mockito.reset(mockSubmissionItemRepository)
+    Mockito.reset(
+      mockSubmissionItemRepository,
+      mockStubBehaviour
+    )
     super.beforeEach()
   }
 
   private val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
 
+  private val mockStubBehaviour = mock[StubBehaviour]
+  private val stubBackendAuthComponents =
+    BackendAuthComponentsStub(mockStubBehaviour)(Helpers.stubControllerComponents(), implicitly)
+
   private val app = GuiceApplicationBuilder()
     .overrides(
       bind[Clock].toInstance(clock),
-      bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository)
+      bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
+      bind[BackendAuthComponents].toInstance(stubBackendAuthComponents)
     )
     .build()
 
@@ -80,11 +92,15 @@ class SubmissionAdminControllerSpec
 
   "list" - {
 
-    "must return a list of submissions for the owner" in {
+    "must return a list of submissions for an authorised user" in {
 
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
       when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
 
-      val request = FakeRequest(routes.SubmissionAdminController.list("owner"))
+      val request =
+        FakeRequest(routes.SubmissionAdminController.list("owner"))
+          .withHeaders("Authorization" -> "Token foo")
 
       val result = route(app, request).value
 
@@ -92,6 +108,30 @@ class SubmissionAdminControllerSpec
 
       val expectedResult = List(SubmissionSummary("id", SubmissionItemStatus.Submitted, None, clock.instant()))
       contentAsJson(result) mustEqual Json.toJson(expectedResult)
+    }
+
+    "must return unauthorised for an unauthenticated user" in {
+
+      when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+
+      val request = FakeRequest(routes.SubmissionAdminController.list("owner")) // No Authorization header
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).list(any())
+    }
+
+    "must return unauthorised for an unauthorised user" in {
+
+      when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.failed(new Exception("foo")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.list("owner"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).list(any())
     }
   }
 }
