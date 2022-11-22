@@ -20,7 +20,7 @@ import models.SubmissionSummary
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
-import org.mockito.Mockito.{never, verify, when}
+import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.freespec.AnyFreeSpec
@@ -132,6 +132,63 @@ class SubmissionAdminControllerSpec
 
       route(app, request).value.failed.futureValue
       verify(mockSubmissionItemRepository, never()).list(any())
+    }
+  }
+
+  "retry" - {
+
+    "must update a submission item to Submitted and return Accepted when the user is authorised" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.successful(item))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual ACCEPTED
+      verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id"), eqTo(SubmissionItemStatus.Submitted), eqTo(None))
+    }
+
+    "must return Not Found when an authorised user attempts to retry a submission item that cannot be found" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.failed(SubmissionItemRepository.NothingToUpdateException))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual NOT_FOUND
+    }
+
+    "must fail for an unauthenticated user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+
+      val request = FakeRequest(routes.SubmissionAdminController.retry("owner", "id")) // No Authorization header
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).update(any(), any(), any(), any())
+    }
+
+    "must fail when the user is not authorised" in {
+
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.failed(new Exception("foo")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).update(any(), any(), any(), any())
     }
   }
 }

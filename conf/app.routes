@@ -1,6 +1,8 @@
 # microservice specific routes
 
-POST       /submit                       controllers.SubmissionController.submit
-POST       /sdes/callback                controllers.SdesCallbackController.callback
+POST       /submit                              controllers.SubmissionController.submit
+POST       /sdes/callback                       controllers.SdesCallbackController.callback
 
-GET        /:owner/submissions           controllers.SubmissionAdminController.list(owner: String)
+GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String)
+
+POST       /:owner/submissions/:id/retry        controllers.SubmissionAdminController.retry(owner: String, id: String)

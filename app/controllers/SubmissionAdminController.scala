@@ -17,6 +17,7 @@
 package controllers
 
 import models.SubmissionSummary
+import models.submission.SubmissionItemStatus
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
@@ -34,6 +35,7 @@ class SubmissionAdminController @Inject()(
                                          )(implicit ec: ExecutionContext) extends BackendBaseController {
 
   private val read = IAAction("READ")
+  private val write = IAAction("WRITE")
 
   private val authorised = (owner: String, action: IAAction) =>
     auth.authorizedAction(Permission(
@@ -48,5 +50,14 @@ class SubmissionAdminController @Inject()(
     submissionItemRepository.list(owner).map {
       _.map(SubmissionSummary.apply)
     }.map(items => Ok(Json.toJson(items)))
+  }
+
+  def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
+    submissionItemRepository
+      .update(owner, id, SubmissionItemStatus.Submitted, None)
+      .map(_ => Accepted)
+      .recover {
+        case SubmissionItemRepository.NothingToUpdateException => NotFound
+      }
   }
 }
