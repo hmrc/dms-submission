@@ -17,6 +17,7 @@
 package repositories
 
 import cats.implicits.toTraverseOps
+import models.DailySummary
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -27,7 +28,7 @@ import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Duration, Instant}
+import java.time.{Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
@@ -361,6 +362,31 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.countByStatus(SubmissionItemStatus.Failed).futureValue mustEqual 1
       repository.countByStatus(SubmissionItemStatus.Completed).futureValue mustEqual 1
       repository.countByStatus(SubmissionItemStatus.Forwarded).futureValue mustEqual 1
+    }
+  }
+
+  "dailySummaries" - {
+
+    "must return a summary for every day where there are records" in {
+
+      List(
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Failed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Processed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Submitted, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Forwarded, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant().minus(Duration.ofDays(10))),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, created = clock.instant())
+      ).traverse(repository.insert)
+        .futureValue
+
+      val result = repository.dailySummaries("my-service").futureValue
+
+      result must contain theSameElementsAs List(
+        DailySummary(_id = LocalDate.now(clock), submitted = 1, forwarded = 1, processed = 1, failed = 1, completed = 2),
+        DailySummary(_id = LocalDate.now(clock).minusDays(10), submitted = 0, forwarded = 0, processed = 0, failed = 0, completed = 1)
+      )
     }
   }
 

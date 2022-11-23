@@ -22,11 +22,11 @@ sealed trait SubmissionItemStatus extends Product with Serializable
 
 object SubmissionItemStatus {
 
-  case object Submitted extends SubmissionItemStatus
-  case object Forwarded extends SubmissionItemStatus
-  case object Processed extends SubmissionItemStatus
-  case object Failed extends SubmissionItemStatus
-  case object Completed extends SubmissionItemStatus
+  case object Submitted extends SubmissionItemStatus { override def toString: String = "submitted" }
+  case object Forwarded extends SubmissionItemStatus { override def toString: String = "forwarded" }
+  case object Processed extends SubmissionItemStatus { override def toString: String = "processed" }
+  case object Failed extends SubmissionItemStatus { override def toString: String = "failed" }
+  case object Completed extends SubmissionItemStatus { override def toString: String = "completed" }
 
   lazy val reads: Reads[SubmissionItemStatus] =
     __.read[String].flatMap {
