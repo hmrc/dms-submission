@@ -16,12 +16,14 @@
 
 package repositories
 
-import models.Done
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.{DailySummary, Done}
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
+import play.api.libs.json.{JsObject, Json}
 import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
 import java.time.{Clock, Duration}
@@ -41,9 +43,9 @@ class SubmissionItemRepository @Inject() (
   domainFormat = SubmissionItem.format,
   indexes = Seq(
     IndexModel(
-      Indexes.ascending("lastUpdated"),
+      Indexes.ascending("created"),
       IndexOptions()
-        .name("lastUpdatedIdx")
+        .name("createdIdx")
         .expireAfter(30, TimeUnit.DAYS)
     ),
     IndexModel(
@@ -67,7 +69,9 @@ class SubmissionItemRepository @Inject() (
         .name("statusIdx")
     )
   ),
-  extraCodecs = Codecs.playFormatSumCodecs(SubmissionItemStatus.format)
+  extraCodecs =
+    Codecs.playFormatSumCodecs(SubmissionItemStatus.format) ++
+    Seq(Codecs.playFormatCodec(DailySummary.mongoFormat))
   ) {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
@@ -162,6 +166,44 @@ class SubmissionItemRepository @Inject() (
           .map(_ => QueryResult.Found)
       }.getOrElse(Future.successful(QueryResult.NotFound))
     }
+
+  def dailySummaries(owner: String): Future[Seq[DailySummary]] = {
+
+    import SubmissionItemStatus._
+
+    def countStatus(status: SubmissionItemStatus): JsObject = Json.obj(
+      "$sum" -> Json.obj(
+        "$cond" -> Json.obj(
+          "if" -> Json.obj(
+            "$eq" -> Json.arr("$status", status)
+          ),
+          "then" -> 1,
+          "else" -> 0
+        )
+      )
+    )
+
+    val groupExpression = Json.obj(
+      "$group" -> Json.obj(
+        "_id" -> Json.obj(
+          "$dateToString" -> Json.obj(
+            "format" -> "%Y-%m-%d",
+            "date" -> "$created"
+          )
+        ),
+        Submitted.toString.toLowerCase -> countStatus(Submitted),
+        Forwarded.toString.toLowerCase -> countStatus(Forwarded),
+        Processed.toString.toLowerCase -> countStatus(Processed),
+        Failed.toString.toLowerCase    -> countStatus(Failed),
+        Completed.toString.toLowerCase -> countStatus(Completed)
+      )
+    )
+
+    collection.aggregate[DailySummary](List(
+      Aggregates.`match`(Filters.eq("owner", owner)),
+      groupExpression.toDocument()
+    )).toFuture
+  }
 }
 
 object SubmissionItemRepository {
