@@ -191,11 +191,11 @@ class SubmissionItemRepository @Inject() (
             "date" -> "$created"
           )
         ),
-        Submitted.toString -> countStatus(Submitted),
-        Forwarded.toString -> countStatus(Forwarded),
-        Processed.toString -> countStatus(Processed),
-        Failed.toString    -> countStatus(Failed),
-        Completed.toString -> countStatus(Completed)
+        Submitted.toString.toLowerCase -> countStatus(Submitted),
+        Forwarded.toString.toLowerCase -> countStatus(Forwarded),
+        Processed.toString.toLowerCase -> countStatus(Processed),
+        Failed.toString.toLowerCase    -> countStatus(Failed),
+        Completed.toString.toLowerCase -> countStatus(Completed)
       )
     )
 
