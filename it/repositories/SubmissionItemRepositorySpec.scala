@@ -173,6 +173,23 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
   }
 
+  "list by owner" -{
+
+    "must return a list of items owned by the supplied owner" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1")
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2")
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", owner = "some-other-owner")
+
+      insert(item1).futureValue
+      insert(item2).futureValue
+      insert(item3).futureValue
+
+      val result = repository.list("owner").futureValue
+      result must contain theSameElementsAs Seq(item1, item2)
+    }
+  }
+
   "get by sdesCorrelationId" - {
 
     "must return an item that matches the sdesCorrelationId" in {
