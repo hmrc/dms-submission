@@ -43,9 +43,9 @@ class SubmissionItemRepository @Inject() (
   domainFormat = SubmissionItem.format,
   indexes = Seq(
     IndexModel(
-      Indexes.ascending("lastUpdated"),
+      Indexes.ascending("created"),
       IndexOptions()
-        .name("lastUpdatedIdx")
+        .name("createdIdx")
         .expireAfter(30, TimeUnit.DAYS)
     ),
     IndexModel(
