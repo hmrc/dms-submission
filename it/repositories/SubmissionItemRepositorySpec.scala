@@ -384,8 +384,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val result = repository.dailySummaries("my-service").futureValue
 
       result must contain theSameElementsAs List(
-        DailySummary(_id = LocalDate.now(clock), submitted = 1, forwarded = 1, processed = 1, failed = 1, completed = 2),
-        DailySummary(_id = LocalDate.now(clock).minusDays(10), submitted = 0, forwarded = 0, processed = 0, failed = 0, completed = 1)
+        DailySummary(date = LocalDate.now(clock), submitted = 1, forwarded = 1, processed = 1, failed = 1, completed = 2),
+        DailySummary(date = LocalDate.now(clock).minusDays(10), submitted = 0, forwarded = 0, processed = 0, failed = 0, completed = 1)
       )
     }
   }

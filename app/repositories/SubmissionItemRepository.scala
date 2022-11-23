@@ -71,7 +71,7 @@ class SubmissionItemRepository @Inject() (
   ),
   extraCodecs =
     Codecs.playFormatSumCodecs(SubmissionItemStatus.format) ++
-    Seq(Codecs.playFormatCodec(DailySummary.format))
+    Seq(Codecs.playFormatCodec(DailySummary.mongoFormat))
   ) {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))

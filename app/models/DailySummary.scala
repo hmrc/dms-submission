@@ -16,12 +16,13 @@
 
 package models
 
-import play.api.libs.json.{Json, OFormat, OWrites, Reads}
+import play.api.libs.json._
+import play.api.libs.functional.syntax._
 
 import java.time.LocalDate
 
 final case class DailySummary(
-                               _id: LocalDate,
+                               date: LocalDate,
                                submitted: Int,
                                forwarded: Int,
                                processed: Int,
@@ -30,6 +31,26 @@ final case class DailySummary(
                              )
 
 object DailySummary {
+
+  lazy val mongoReads: Reads[DailySummary] = (
+    (__ \ "_id").read[LocalDate] and
+    (__ \ "submitted").read[Int] and
+    (__ \ "forwarded").read[Int] and
+    (__ \ "processed").read[Int] and
+    (__ \ "failed").read[Int] and
+    (__ \ "completed").read[Int]
+  )(DailySummary.apply _)
+
+  lazy val mongoWrites: OWrites[DailySummary] = (
+    (__ \ "_id").write[LocalDate] and
+    (__ \ "submitted").write[Int] and
+    (__ \ "forwarded").write[Int] and
+    (__ \ "processed").write[Int] and
+    (__ \ "failed").write[Int] and
+    (__ \ "completed").write[Int]
+  )(unlift(DailySummary.unapply))
+
+  lazy val mongoFormat: OFormat[DailySummary] = OFormat(mongoReads, mongoWrites)
 
   implicit lazy val format: OFormat[DailySummary] = Json.format
 }
