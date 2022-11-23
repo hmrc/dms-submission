@@ -388,6 +388,18 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
         DailySummary(date = LocalDate.now(clock).minusDays(10), submitted = 0, forwarded = 0, processed = 0, failed = 0, completed = 1)
       )
     }
+
+    "must return an empty list when there is no data for this owner" in {
+
+      List(
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, created = clock.instant().minus(Duration.ofDays(10))),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, created = clock.instant())
+      ).traverse(repository.insert)
+        .futureValue
+
+      val result = repository.dailySummaries("my-service").futureValue
+      result mustBe empty
+    }
   }
 
   private def randomItem: SubmissionItem = item.copy(

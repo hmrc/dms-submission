@@ -60,4 +60,10 @@ class SubmissionAdminController @Inject()(
         case SubmissionItemRepository.NothingToUpdateException => NotFound
       }
   }
+
+  def dailySummaries(owner: String): Action[AnyContent] = authorised(owner, read).async { implicit request =>
+    submissionItemRepository
+      .dailySummaries(owner)
+      .map(summaries => Ok(Json.obj("summaries" -> summaries)))
+  }
 }
