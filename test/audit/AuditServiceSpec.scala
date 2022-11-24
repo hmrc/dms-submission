@@ -35,7 +35,8 @@ class AuditServiceSpec extends AnyFreeSpec with Matchers with MockitoSugar {
       bind[AuditConnector].toInstance(mockAuditConnector)
     )
     .configure(
-      "auditing.submit-request-event-name" -> "submit-request-event"
+      "auditing.submit-request-event-name" -> "submit-request-event",
+      "auditing.sdes-callback-event-name" -> "sdes-callback-event"
     )
     .build()
 
@@ -61,6 +62,26 @@ class AuditServiceSpec extends AnyFreeSpec with Matchers with MockitoSugar {
       service.auditSubmitRequest(request)(hc)
 
       verify(mockAuditConnector, times(1)).sendExplicitAudit(eqTo("submit-request-event"), eqTo(request))(eqTo(hc), any(), any())
+    }
+  }
+
+  "auditSdesCallback" - {
+
+    "must call the audit connector with the given event" in {
+
+      val hc = HeaderCarrier()
+
+      val request = SdesCallbackEvent(
+        id = "id",
+        owner = "owner",
+        sdesCorrelationId = "sdesCorrelationId",
+        status = "status",
+        failureReason = Some("failureReason")
+      )
+
+      service.auditSdesCallback(request)(hc)
+
+      verify(mockAuditConnector, times(1)).sendExplicitAudit(eqTo("sdes-callback-event"), eqTo(request))(eqTo(hc), any(), any())
     }
   }
 }

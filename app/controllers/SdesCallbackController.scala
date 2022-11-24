@@ -16,13 +16,17 @@
 
 package controllers
 
+import cats.implicits._
+import audit.{AuditService, SdesCallbackEvent}
 import logging.Logging
+import models.Done
 import models.sdes.{NotificationCallback, NotificationType}
 import models.submission.{SubmissionItem, SubmissionItemStatus}
 import play.api.Configuration
 import play.api.mvc.ControllerComponents
 import repositories.SubmissionItemRepository
 import services.RetryService
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import java.time.{Clock, Duration}
@@ -36,7 +40,8 @@ class SdesCallbackController @Inject() (
                                          submissionItemRepository: SubmissionItemRepository,
                                          clock: Clock,
                                          configuration: Configuration,
-                                         retryService: RetryService
+                                         retryService: RetryService,
+                                         auditService: AuditService
                                        )(implicit ec: ExecutionContext) extends BackendBaseController with Logging {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
@@ -54,7 +59,7 @@ class SdesCallbackController @Inject() (
               submissionItemRepository.update(item.sdesCorrelationId, newStatus, request.body.failureReason)
                 .map(_ => Ok)
             }.getOrElse(Future.successful(Ok))
-          }
+          }.flatTap(_ => auditSdesCallback(item, request.body))
         }.getOrElse {
           logger.warn(s"SDES Callback received for correlationId: ${request.body.correlationID}, with status: ${request.body.notification} but no matching submission was found")
           Future.successful(NotFound)
@@ -75,6 +80,19 @@ class SdesCallbackController @Inject() (
 
   private def isSubmissionLockedException(e: Throwable): Boolean =
     e.isInstanceOf[SubmissionLockedException]
+
+  private def auditSdesCallback(item: SubmissionItem, request: NotificationCallback)(implicit hc: HeaderCarrier): Future[Done] =
+    Future.successful {
+      val event = SdesCallbackEvent(
+        id = item.id,
+        owner = item.owner,
+        sdesCorrelationId = item.sdesCorrelationId,
+        status = request.notification.toString,
+        failureReason = request.failureReason
+      )
+      auditService.auditSdesCallback(event)
+      Done
+    }
 
   final case class SubmissionLockedException(sdesCorrelationId: String) extends Throwable with NoStackTrace {
     override def getMessage: String = s"Item with sdesCorrelationId $sdesCorrelationId was locked"
