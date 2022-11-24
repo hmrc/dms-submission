@@ -129,7 +129,7 @@ class SubmissionItemRepository @Inject() (
 
   def list(owner: String): Future[Seq[SubmissionItem]] =
     collection.find(Filters.equal("owner", owner))
-      .toFuture
+      .toFuture()
 
   def countByStatus(status: SubmissionItemStatus): Future[Long] =
     collection.countDocuments(Filters.equal("status", status)).toFuture()

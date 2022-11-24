@@ -16,21 +16,26 @@
 
 package controllers
 
-import models.SubmissionSummary
-import models.submission.SubmissionItemStatus
+import audit.{AuditService, RetryRequestEvent}
+import cats.implicits.{toFlatMapOps, toFunctorOps}
+import models.{Done, SubmissionSummary}
+import models.submission.{SubmissionItem, SubmissionItemStatus}
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType}
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType, Retrieval}
 import uk.gov.hmrc.internalauth.client.Predicate.Permission
+import uk.gov.hmrc.internalauth.client.Retrieval.Username
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import javax.inject.Inject
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class SubmissionAdminController @Inject()(
                                            override val controllerComponents: ControllerComponents,
                                            submissionItemRepository: SubmissionItemRepository,
+                                           auditService: AuditService,
                                            auth: BackendAuthComponents
                                          )(implicit ec: ExecutionContext) extends BackendBaseController {
 
@@ -44,7 +49,7 @@ class SubmissionAdminController @Inject()(
         ResourceLocation(owner)
       ),
       action
-    ))
+    ), Retrieval.username)
 
   def list(owner: String): Action[AnyContent] = authorised(owner, read).async { implicit request =>
     submissionItemRepository.list(owner).map {
@@ -55,7 +60,8 @@ class SubmissionAdminController @Inject()(
   def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
     submissionItemRepository
       .update(owner, id, SubmissionItemStatus.Submitted, None)
-      .map(_ => Accepted)
+      .flatTap(auditRetryRequest(_, request.retrieval))
+      .as(Accepted)
       .recover {
         case SubmissionItemRepository.NothingToUpdateException => NotFound
       }
@@ -66,4 +72,16 @@ class SubmissionAdminController @Inject()(
       .dailySummaries(owner)
       .map(summaries => Ok(Json.obj("summaries" -> summaries)))
   }
+
+  private def auditRetryRequest(item: SubmissionItem, username: Username)(implicit hc: HeaderCarrier): Future[Done] =
+    Future.successful {
+      val event = RetryRequestEvent(
+        id = item.id,
+        owner = item.owner,
+        sdesCorrelationId = item.sdesCorrelationId,
+        user = username.value
+      )
+      auditService.auditRetryRequest(event)
+      Done
+    }
 }

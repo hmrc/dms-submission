@@ -16,6 +16,7 @@
 
 package controllers
 
+import audit.{AuditService, RetryRequestEvent}
 import models.{DailySummary, SubmissionSummary}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
@@ -34,6 +35,7 @@ import play.api.test.Helpers._
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType, Retrieval}
 import uk.gov.hmrc.internalauth.client.Predicate.Permission
+import uk.gov.hmrc.internalauth.client.Retrieval.Username
 import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 
 import java.time.temporal.ChronoUnit
@@ -49,12 +51,14 @@ class SubmissionAdminControllerSpec
     with BeforeAndAfterEach
     with ScalaFutures {
 
-  private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
+  private val mockSubmissionItemRepository: SubmissionItemRepository = mock[SubmissionItemRepository]
+  private val mockAuditService: AuditService = mock[AuditService]
 
   override def beforeEach(): Unit = {
-    Mockito.reset(
+    Mockito.reset[Any](
       mockSubmissionItemRepository,
-      mockStubBehaviour
+      mockStubBehaviour,
+      mockAuditService
     )
     super.beforeEach()
   }
@@ -69,7 +73,8 @@ class SubmissionAdminControllerSpec
     .overrides(
       bind[Clock].toInstance(clock),
       bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
-      bind[BackendAuthComponents].toInstance(stubBackendAuthComponents)
+      bind[BackendAuthComponents].toInstance(stubBackendAuthComponents),
+      bind[AuditService].toInstance(mockAuditService)
     )
     .build()
 
@@ -96,7 +101,7 @@ class SubmissionAdminControllerSpec
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
       when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.list("owner"))
@@ -113,7 +118,7 @@ class SubmissionAdminControllerSpec
     "must return unauthorised for an unauthenticated user" in {
 
       when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
-      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request = FakeRequest(routes.SubmissionAdminController.list("owner")) // No Authorization header
 
@@ -124,7 +129,7 @@ class SubmissionAdminControllerSpec
     "must return unauthorised for an unauthorised user" in {
 
       when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
-      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.failed(new Exception("foo")))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.list("owner"))
@@ -139,9 +144,16 @@ class SubmissionAdminControllerSpec
 
     "must update a submission item to Submitted and return Accepted when the user is authorised" in {
 
+      val expectedAudit = RetryRequestEvent(
+        id = "id",
+        owner = "owner",
+        sdesCorrelationId = "sdesCorrelationId",
+        user = "username"
+      )
+
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
       when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.successful(item))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
@@ -151,13 +163,14 @@ class SubmissionAdminControllerSpec
 
       status(result) mustEqual ACCEPTED
       verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id"), eqTo(SubmissionItemStatus.Submitted), eqTo(None))
+      verify(mockAuditService, times(1)).auditRetryRequest(eqTo(expectedAudit))(any())
     }
 
     "must return Not Found when an authorised user attempts to retry a submission item that cannot be found" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
       when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.failed(SubmissionItemRepository.NothingToUpdateException))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
@@ -166,12 +179,13 @@ class SubmissionAdminControllerSpec
       val result = route(app, request).value
 
       status(result) mustEqual NOT_FOUND
+      verify(mockAuditService, never()).auditRetryRequest(any())(any())
     }
 
     "must fail for an unauthenticated user" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request = FakeRequest(routes.SubmissionAdminController.retry("owner", "id")) // No Authorization header
 
@@ -181,7 +195,7 @@ class SubmissionAdminControllerSpec
 
     "must fail when the user is not authorised" in {
 
-      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.failed(new Exception("foo")))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.retry("owner", "id"))
@@ -199,7 +213,7 @@ class SubmissionAdminControllerSpec
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
       val dailySummaries = List(DailySummary(LocalDate.now, 1, 2, 3, 4, 5))
       when(mockSubmissionItemRepository.dailySummaries(any())).thenReturn(Future.successful(dailySummaries))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.dailySummaries("owner"))
@@ -216,7 +230,7 @@ class SubmissionAdminControllerSpec
     "must fail for an unauthenticated user" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
-      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.successful(Retrieval.EmptyRetrieval))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request = FakeRequest(routes.SubmissionAdminController.dailySummaries("owner")) // No Authorization header
 
@@ -226,7 +240,7 @@ class SubmissionAdminControllerSpec
 
     "must fail when the user is not authorised" in {
 
-      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.EmptyRetrieval))).thenReturn(Future.failed(new Exception("foo")))
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
 
       val request =
         FakeRequest(routes.SubmissionAdminController.dailySummaries("owner"))

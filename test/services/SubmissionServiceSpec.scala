@@ -18,6 +18,7 @@ package services
 
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import audit.{AuditService, SubmitRequestEvent}
 import better.files.File
 import models.{Done, Pdf}
 import models.submission._
@@ -49,13 +50,15 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
   private val mockObjectStoreClient = mock[PlayObjectStoreClient]
   private val mockZipService = mock[ZipService]
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
+  private val mockAuditService = mock[AuditService]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
     Mockito.reset[Any](
       mockObjectStoreClient,
       mockZipService,
-      mockSubmissionItemRepository
+      mockSubmissionItemRepository,
+      mockAuditService
     )
   }
 
@@ -66,6 +69,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         bind[PlayObjectStoreClient].toInstance(mockObjectStoreClient),
         bind[ZipService].toInstance(mockZipService),
         bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
+        bind[AuditService].toInstance(mockAuditService),
         bind[Clock].toInstance(clock)
       )
       .build()
@@ -116,6 +120,16 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       lastUpdated = clock.instant(),
       sdesCorrelationId = "sdesCorrelationId"
     )
+    val expectedAudit = SubmitRequestEvent(
+      id = "id",
+      owner = "test-service",
+      sdesCorrelationId = "sdesCorrelationId",
+      customerId = "customerId",
+      formId = "formId",
+      classificationType = "classificationType",
+      businessArea = "businessArea",
+      hash = "hash"
+    )
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
@@ -133,6 +147,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       val capturedItem = itemCaptor.getValue
       capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
       result mustEqual capturedItem.id
+
+      verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId))(hc)
 
       val capturedFile = fileCaptor.getValue
       capturedFile mustEqual Path.Directory("sdes/test-service").file(capturedItem.id)
@@ -156,6 +172,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
       capturedItem.id mustEqual id
       result mustEqual id
+
+      verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(sdesCorrelationId = capturedItem.sdesCorrelationId))(hc)
     }
 
     "must fail when the fail service fails to create a zip file" in {
