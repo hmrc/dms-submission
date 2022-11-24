@@ -31,10 +31,14 @@ class AuditService @Inject() (
 
   private val submitRequestEventName: String = configuration.get[String]("auditing.submit-request-event-name")
   private val sdesCallbackEventName: String = configuration.get[String]("auditing.sdes-callback-event-name")
+  private val retryRequestEventName: String = configuration.get[String]("auditing.retry-request-event-name")
 
   def auditSubmitRequest(event: SubmitRequestEvent)(implicit hc: HeaderCarrier): Unit =
     auditConnector.sendExplicitAudit(submitRequestEventName, event)
 
   def auditSdesCallback(event: SdesCallbackEvent)(implicit hc: HeaderCarrier): Unit =
     auditConnector.sendExplicitAudit(sdesCallbackEventName, event)
+
+  def auditRetryRequest(event: RetryRequestEvent)(implicit hc: HeaderCarrier): Unit =
+    auditConnector.sendExplicitAudit(retryRequestEventName, event)
 }
