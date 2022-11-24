@@ -16,9 +16,9 @@
 
 package services
 
-import better.files.File
+import audit.{AuditService, SubmitRequestEvent}
 import config.FileSystemExecutionContext
-import models.Pdf
+import models.{Done, Pdf}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import play.api.Logging
 import repositories.SubmissionItemRepository
@@ -37,12 +37,13 @@ class SubmissionService @Inject() (
                                     objectStoreClient: PlayObjectStoreClient,
                                     fileService: FileService,
                                     zipService: ZipService,
+                                    auditService: AuditService,
                                     submissionItemRepository: SubmissionItemRepository,
                                     clock: Clock,
                                     fileSystemExecutionContext: FileSystemExecutionContext
                                   )(implicit ec: ExecutionContext) extends Logging {
 
-  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] = {
+  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.id.getOrElse(UUID.randomUUID().toString)
       val path = Path.Directory(s"sdes/$owner").file(id)
@@ -50,10 +51,10 @@ class SubmissionService @Inject() (
         zip           <- zipService.createZip(workDir, pdf, request.metadata, id)
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
         item          =  createSubmissionItem(request, objectSummary, id, owner)
+        _             <- auditRequest(request, item)
         _             <- submissionItemRepository.insert(item)
       } yield item.id
     }
-  }
 
   private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, id: String, service: String): SubmissionItem =
     SubmissionItem(
@@ -72,4 +73,21 @@ class SubmissionService @Inject() (
       lastUpdated = clock.instant(),
       sdesCorrelationId = UUID.randomUUID().toString
     )
+
+  private def auditRequest(request: SubmissionRequest, item: SubmissionItem)(implicit hc: HeaderCarrier): Future[Done] =
+//    Future.failed(new RuntimeException())
+    Future.successful {
+      val event = SubmitRequestEvent(
+        id = item.id,
+        owner = item.owner,
+        sdesCorrelationId = item.sdesCorrelationId,
+        customerId = request.metadata.customerId,
+        formId = request.metadata.formId,
+        classificationType = request.metadata.classificationType,
+        businessArea = request.metadata.businessArea,
+        hash = item.objectSummary.contentMd5
+      )
+      auditService.auditSubmitRequest(event)
+      Done
+    }
 }
