@@ -189,6 +189,45 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val result = repository.list("owner").futureValue
       result must contain theSameElementsAs Seq(item1, item2)
     }
+
+    "must return a list of items filtered by status when status is supplied" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed)
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2")
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", owner = "some-other-owner")
+
+      List(item1, item2, item3).traverse(insert).futureValue
+
+      val result = repository.list("owner", status = Some(SubmissionItemStatus.Failed)).futureValue
+      result must contain only item1
+    }
+
+    "must return a list of items filtered by the day the item was created" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", created = clock.instant())
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", created = clock.instant().minus(Duration.ofDays(1)))
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", created = clock.instant(), owner = "some-other-owner")
+
+      List(item1, item2, item3).traverse(insert).futureValue
+
+      val result = repository.list("owner", created = Some(LocalDate.now(clock))).futureValue
+      result must contain only item1
+    }
+
+    "must apply all filters" in {
+
+      val item1 = randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed)
+
+      List(
+        item1,
+        randomItem.copy(owner = "owner", created = clock.instant(), status = SubmissionItemStatus.Completed),
+        randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Forwarded),
+        randomItem.copy(owner = "owner2", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
+      ).traverse(insert).futureValue
+
+      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Some(SubmissionItemStatus.Completed)).futureValue
+      result must contain only item1
+    }
   }
 
   "get by sdesCorrelationId" - {

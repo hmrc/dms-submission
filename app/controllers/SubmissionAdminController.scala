@@ -29,6 +29,7 @@ import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.internalauth.client.Retrieval.Username
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
+import java.time.LocalDate
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -51,11 +52,12 @@ class SubmissionAdminController @Inject()(
       action
     ), Retrieval.username)
 
-  def list(owner: String): Action[AnyContent] = authorised(owner, read).async { implicit request =>
-    submissionItemRepository.list(owner).map {
-      _.map(SubmissionSummary.apply)
-    }.map(items => Ok(Json.toJson(items)))
-  }
+  def list(owner: String, status: Option[SubmissionItemStatus], created: Option[LocalDate]): Action[AnyContent] =
+    authorised(owner, read).async { implicit request =>
+      submissionItemRepository.list(owner, status, created).map {
+        _.map(SubmissionSummary.apply)
+      }.map(items => Ok(Json.toJson(items)))
+    }
 
   def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
     submissionItemRepository
