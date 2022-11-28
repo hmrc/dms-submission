@@ -17,6 +17,7 @@
 package models.submission
 
 import play.api.libs.json._
+import play.api.mvc.QueryStringBindable
 
 sealed trait SubmissionItemStatus extends Product with Serializable
 
@@ -48,4 +49,23 @@ object SubmissionItemStatus {
     }
 
   implicit lazy val format: Format[SubmissionItemStatus] = Format(reads, writes)
+
+  implicit lazy val queryStringBindable: QueryStringBindable[SubmissionItemStatus] =
+    new QueryStringBindable.Parsing(
+      _.toLowerCase match {
+        case "submitted" => Submitted
+        case "forwarded" => Forwarded
+        case "processed" => Processed
+        case "failed"    => Failed
+        case "completed" => Completed
+      },
+      {
+        case Submitted => "submitted"
+        case Forwarded => "forwarded"
+        case Processed => "processed"
+        case Failed    => "failed"
+        case Completed => "completed"
+      },
+      (key, _) => s"$key: invalid status"
+    )
 }

@@ -16,11 +16,13 @@
 
 package models.submission
 
+import org.scalatest.{EitherValues, OptionValues}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import play.api.libs.json.{JsString, Json}
+import play.api.mvc.QueryStringBindable
 
-class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
+class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers with OptionValues with EitherValues {
 
   "read" - {
 
@@ -69,6 +71,67 @@ class SubmissionItemStatusSpec extends AnyFreeSpec with Matchers {
 
     "must write Completed" in {
       Json.toJson[SubmissionItemStatus](SubmissionItemStatus.Completed) mustEqual JsString("Completed")
+    }
+  }
+
+  "queryStringBindable" - {
+
+    val bindable: QueryStringBindable[SubmissionItemStatus] =
+      implicitly[QueryStringBindable[SubmissionItemStatus]]
+
+    def bind(string: String): Either[String, SubmissionItemStatus] =
+      bindable.bind("status", Map("status" -> Seq(string))).value
+
+    def unbind(status: SubmissionItemStatus): String =
+      bindable.unbind("status", status)
+
+    "must bind Submitted" in {
+      bind("Submitted").value mustEqual SubmissionItemStatus.Submitted
+      bind("submitted").value mustEqual SubmissionItemStatus.Submitted
+    }
+
+    "must bind Forwarded" in {
+      bind("Forwarded").value mustEqual SubmissionItemStatus.Forwarded
+      bind("forwarded").value mustEqual SubmissionItemStatus.Forwarded
+    }
+
+    "must bind Failed" in {
+      bind("Failed").value mustEqual SubmissionItemStatus.Failed
+      bind("failed").value mustEqual SubmissionItemStatus.Failed
+    }
+
+    "must bind Processed" in {
+      bind("Processed").value mustEqual SubmissionItemStatus.Processed
+      bind("processed").value mustEqual SubmissionItemStatus.Processed
+    }
+
+    "must bind Completed" in {
+      bind("Completed").value mustEqual SubmissionItemStatus.Completed
+      bind("completed").value mustEqual SubmissionItemStatus.Completed
+    }
+
+    "must fail for an unknown status" in {
+      bind("foobar") mustBe Left("status: invalid status")
+    }
+
+    "must unbind Submitted" in {
+      unbind(SubmissionItemStatus.Submitted) mustEqual "status=submitted"
+    }
+
+    "must unbind Forwarded" in {
+      unbind(SubmissionItemStatus.Forwarded) mustEqual "status=forwarded"
+    }
+
+    "must unbind Failed" in {
+      unbind(SubmissionItemStatus.Failed) mustEqual "status=failed"
+    }
+
+    "must unbind Processed" in {
+      unbind(SubmissionItemStatus.Processed) mustEqual "status=processed"
+    }
+
+    "must unbind Completed" in {
+      unbind(SubmissionItemStatus.Completed) mustEqual "status=completed"
     }
   }
 }

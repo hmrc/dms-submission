@@ -1,5 +1,6 @@
 import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
 import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
+import play.sbt.routes.RoutesKeys
 
 lazy val microservice = Project("dms-submission", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin, BuildInfoPlugin)
@@ -14,7 +15,12 @@ lazy val microservice = Project("dms-submission", file("."))
     addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     buildInfoKeys := Seq[BuildInfoKey](name, version, PlayKeys.playDefaultPort),
-    buildInfoPackage := "buildinfo"
+    buildInfoPackage := "buildinfo",
+    RoutesKeys.routesImport ++= Seq(
+      "models._",
+      "models.submission._",
+      "java.time.LocalDate"
+    )
   )
   .settings(publishingSettings: _*)
   .settings(inConfig(Test)(testSettings): _*)

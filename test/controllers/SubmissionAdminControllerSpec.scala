@@ -100,11 +100,11 @@ class SubmissionAdminControllerSpec
     "must return a list of submissions for an authorised user" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
-      when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
+      when(mockSubmissionItemRepository.list(any(), any(), any())).thenReturn(Future.successful(Seq(item)))
       when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
-        FakeRequest(routes.SubmissionAdminController.list("owner"))
+        FakeRequest(routes.SubmissionAdminController.list("owner", status = Some(SubmissionItemStatus.Completed), created = Some(LocalDate.now(clock))))
           .withHeaders("Authorization" -> "Token foo")
 
       val result = route(app, request).value
@@ -113,22 +113,22 @@ class SubmissionAdminControllerSpec
 
       val expectedResult = List(SubmissionSummary("id", SubmissionItemStatus.Submitted, None, clock.instant()))
       contentAsJson(result) mustEqual Json.toJson(expectedResult)
+
+      verify(mockSubmissionItemRepository).list("owner", status = Some(SubmissionItemStatus.Completed), created = Some(LocalDate.now(clock)))
     }
 
     "must return unauthorised for an unauthenticated user" in {
 
-      when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
       when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request = FakeRequest(routes.SubmissionAdminController.list("owner")) // No Authorization header
 
       route(app, request).value.failed.futureValue
-      verify(mockSubmissionItemRepository, never()).list(any())
+      verify(mockSubmissionItemRepository, never()).list(any(), any(), any())
     }
 
     "must return unauthorised for an unauthorised user" in {
 
-      when(mockSubmissionItemRepository.list(any())).thenReturn(Future.successful(Seq(item)))
       when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
 
       val request =
@@ -136,7 +136,7 @@ class SubmissionAdminControllerSpec
           .withHeaders("Authorization" -> "Token foo")
 
       route(app, request).value.failed.futureValue
-      verify(mockSubmissionItemRepository, never()).list(any())
+      verify(mockSubmissionItemRepository, never()).list(any(), any(), any())
     }
   }
 

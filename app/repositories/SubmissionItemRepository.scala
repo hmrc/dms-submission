@@ -26,7 +26,7 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
-import java.time.{Clock, Duration}
+import java.time.{Clock, Duration, LocalDate, ZoneOffset}
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -127,9 +127,18 @@ class SubmissionItemRepository @Inject() (
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 
-  def list(owner: String): Future[Seq[SubmissionItem]] =
-    collection.find(Filters.equal("owner", owner))
-      .toFuture()
+  def list(owner: String, status: Option[SubmissionItemStatus] = None, created: Option[LocalDate] = None): Future[Seq[SubmissionItem]] = {
+    val ownerFilter = Filters.equal("owner", owner)
+    val statusFilter = status.toList.map(Filters.equal("status", _))
+    val createdFilter = created.toList.flatMap { date =>
+      List(
+        Filters.gte("created", date.atStartOfDay(ZoneOffset.UTC).toInstant),
+        Filters.lt("created", date.atStartOfDay(ZoneOffset.UTC).plusDays(1).toInstant)
+      )
+    }
+    val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
+    collection.find(filters).toFuture()
+  }
 
   def countByStatus(status: SubmissionItemStatus): Future[Long] =
     collection.countDocuments(Filters.equal("status", status)).toFuture()
