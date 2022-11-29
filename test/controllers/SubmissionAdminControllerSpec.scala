@@ -119,8 +119,6 @@ class SubmissionAdminControllerSpec
 
     "must return unauthorised for an unauthenticated user" in {
 
-      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
-
       val request = FakeRequest(routes.SubmissionAdminController.list("owner")) // No Authorization header
 
       route(app, request).value.failed.futureValue
@@ -137,6 +135,66 @@ class SubmissionAdminControllerSpec
 
       route(app, request).value.failed.futureValue
       verify(mockSubmissionItemRepository, never()).list(any(), any(), any())
+    }
+  }
+
+  "show" - {
+
+    "must return the data for the requested submission item when it exists and the user is authorised" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
+      when(mockSubmissionItemRepository.get(eqTo("owner"), eqTo("id"))).thenReturn(Future.successful(Some(item)))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.show("owner", "id"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual OK
+      contentAsJson(result) mustEqual Json.toJson(item)
+      verify(mockSubmissionItemRepository, times(1)).get(eqTo("owner"), eqTo("id"))
+    }
+
+    "must return Not Found when the requested submission item does not exist and the user is authorised" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
+      when(mockSubmissionItemRepository.get(eqTo("owner"), eqTo("id"))).thenReturn(Future.successful(None))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request = FakeRequest(routes.SubmissionAdminController.show("owner", "id"))
+        .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual NOT_FOUND
+      verify(mockSubmissionItemRepository, times(1)).get(eqTo("owner"), eqTo("id"))
+    }
+
+    "must fail for an unauthenticated user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
+      when(mockSubmissionItemRepository.get(eqTo("owner"), eqTo("id"))).thenReturn(Future.successful(Some(item)))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request = FakeRequest(routes.SubmissionAdminController.show("owner", "id")) // No auth header
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).get(any(), any())
+    }
+
+    "must fail for an unauthorised user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.failed(new RuntimeException()))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.show("owner", "id"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).get(eqTo("owner"), eqTo("id"))
     }
   }
 

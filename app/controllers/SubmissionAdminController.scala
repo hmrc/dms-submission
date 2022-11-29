@@ -18,15 +18,15 @@ package controllers
 
 import audit.{AuditService, RetryRequestEvent}
 import cats.implicits.{toFlatMapOps, toFunctorOps}
-import models.{Done, SubmissionSummary}
 import models.submission.{SubmissionItem, SubmissionItemStatus}
+import models.{Done, SubmissionSummary}
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType, Retrieval}
 import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.internalauth.client.Retrieval.Username
+import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
 
 import java.time.LocalDate
@@ -57,6 +57,14 @@ class SubmissionAdminController @Inject()(
       submissionItemRepository.list(owner, status, created).map {
         _.map(SubmissionSummary.apply)
       }.map(items => Ok(Json.toJson(items)))
+    }
+
+  def show(owner: String, id: String): Action[AnyContent] =
+    authorised(owner, read).async { implicit request =>
+      submissionItemRepository.get(owner, id).map {
+        _.map(item => Ok(Json.toJson(item)))
+          .getOrElse(NotFound)
+      }
     }
 
   def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>

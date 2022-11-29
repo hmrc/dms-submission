@@ -6,4 +6,5 @@ POST       /sdes/callback                       controllers.SdesCallbackControll
 GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String, status: Option[SubmissionItemStatus] ?= None, created: Option[LocalDate] ?= None)
 GET        /:owner/submissions/summaries        controllers.SubmissionAdminController.dailySummaries(owner: String)
 
+GET        /:owner/submissions/:id              controllers.SubmissionAdminController.show(owner: String, id: String)
 POST       /:owner/submissions/:id/retry        controllers.SubmissionAdminController.retry(owner: String, id: String)
