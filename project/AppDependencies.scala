@@ -9,7 +9,6 @@ object AppDependencies {
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-28"           % hmrcMongoVersion,
     "uk.gov.hmrc.objectstore" %% "object-store-client-play-28"  % "1.0.0",
     "com.github.pathikrit"    %% "better-files"                 % "3.9.1",
-    "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-28"           % "0.73.0",
     "org.typelevel"           %% "cats-core"                    % "2.8.0",
     "org.typelevel"           %% "cats-effect"                  % "3.4.0",
     "co.fs2"                  %% "fs2-core"                     % "3.3.0",
