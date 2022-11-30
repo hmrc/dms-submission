@@ -25,6 +25,7 @@ import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
 
+import java.util.Base64
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -64,10 +65,13 @@ class SdesService @Inject() (
         recipientOrSender = recipientOrSender,
         name = objectSummary.location,
         location = objectSummary.location,
-        checksum = FileChecksum("md5", objectSummary.contentMd5),
+        checksum = FileChecksum("md5", base64ToHex(objectSummary.contentMd5)),
         size = objectSummary.contentLength,
         properties = List.empty
       ),
       audit = FileAudit(correlationId)
     )
+
+  private def base64ToHex(string: String): String =
+    Base64.getDecoder.decode(string).map("%02x".format(_)).mkString
 }
