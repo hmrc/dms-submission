@@ -107,7 +107,7 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
           "dms-submission",
           "location",
           Path.File("location").asUri,
-          FileChecksum("md5", value = "hash"),
+          FileChecksum("md5", value = "85ab21"),
           1337,
           List.empty
         ),

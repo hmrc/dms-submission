@@ -82,7 +82,6 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     }
   }
 
-
   "Successful submissions must return ACCEPTED and receive callbacks confirming files have been processed" in {
 
     server.stubFor(
