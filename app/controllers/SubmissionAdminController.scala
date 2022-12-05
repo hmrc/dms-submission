@@ -52,12 +52,20 @@ class SubmissionAdminController @Inject()(
       action
     ), Retrieval.username)
 
-  def list(owner: String, status: Option[SubmissionItemStatus], created: Option[LocalDate]): Action[AnyContent] =
+  def list(
+            owner: String,
+            status: Option[SubmissionItemStatus],
+            created: Option[LocalDate],
+            limit: Int,
+            offset: Int
+          ): Action[AnyContent] = {
+
     authorised(owner, read).async { implicit request =>
-      submissionItemRepository.list(owner, status, created).map {
+      submissionItemRepository.list(owner, status, created, limit, offset).map {
         _.map(SubmissionSummary.apply)
       }.map(items => Ok(Json.toJson(items)))
     }
+  }
 
   def show(owner: String, id: String): Action[AnyContent] =
     authorised(owner, read).async { implicit request =>
