@@ -28,7 +28,7 @@ import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Duration, Instant, LocalDate}
+import java.time.{Clock, Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
@@ -226,6 +226,30 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       ).traverse(insert).futureValue
 
       val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Some(SubmissionItemStatus.Completed)).futureValue
+      result must contain only item1
+    }
+
+    "must limit the number of items to the supplied limit" in {
+
+      val item1 = randomItem.copy(owner = "owner", created = clock.instant())
+      clock.advance(Duration.ofMinutes(1))
+      val item2 = randomItem.copy(owner = "owner", created = clock.instant())
+
+      List(item1, item2).traverse(insert).futureValue
+
+      val result = repository.list("owner", limit = 1).futureValue
+      result must contain only item2
+    }
+
+    "must return items offset by the offset" in {
+
+      val item1 = randomItem.copy(owner = "owner", created = clock.instant())
+      clock.advance(Duration.ofMinutes(1))
+      val item2 = randomItem.copy(owner = "owner", created = clock.instant())
+
+      List(item1, item2).traverse(insert).futureValue
+
+      val result = repository.list("owner", limit = 1, offset = 1).futureValue
       result must contain only item1
     }
   }

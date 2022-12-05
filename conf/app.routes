@@ -3,7 +3,7 @@
 POST       /submit                              controllers.SubmissionController.submit
 POST       /sdes/callback                       controllers.SdesCallbackController.callback
 
-GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String, status: Option[SubmissionItemStatus] ?= None, created: Option[LocalDate] ?= None)
+GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String, status: Option[SubmissionItemStatus] ?= None, created: Option[LocalDate] ?= None, limit: Int ?= 50, offset: Int ?= 0)
 GET        /:owner/submissions/summaries        controllers.SubmissionAdminController.dailySummaries(owner: String)
 
 GET        /:owner/submissions/:id              controllers.SubmissionAdminController.show(owner: String, id: String)

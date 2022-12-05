@@ -127,7 +127,13 @@ class SubmissionItemRepository @Inject() (
     collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
       .headOption()
 
-  def list(owner: String, status: Option[SubmissionItemStatus] = None, created: Option[LocalDate] = None): Future[Seq[SubmissionItem]] = {
+  def list(owner: String,
+           status: Option[SubmissionItemStatus] = None,
+           created: Option[LocalDate] = None,
+           limit: Int = 50,
+           offset: Int = 0
+          ): Future[Seq[SubmissionItem]] = {
+
     val ownerFilter = Filters.equal("owner", owner)
     val statusFilter = status.toList.map(Filters.equal("status", _))
     val createdFilter = created.toList.flatMap { date =>
@@ -137,7 +143,13 @@ class SubmissionItemRepository @Inject() (
       )
     }
     val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
-    collection.find(filters).toFuture()
+
+    collection
+      .find(filters)
+      .sort(Sorts.descending("created"))
+      .skip(offset)
+      .limit(limit)
+      .toFuture()
   }
 
   def countByStatus(status: SubmissionItemStatus): Future[Long] =
@@ -211,7 +223,7 @@ class SubmissionItemRepository @Inject() (
     collection.aggregate[DailySummary](List(
       Aggregates.`match`(Filters.eq("owner", owner)),
       groupExpression.toDocument()
-    )).toFuture
+    )).toFuture()
   }
 }
 
