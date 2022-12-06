@@ -17,7 +17,7 @@
 package controllers
 
 import audit.{AuditService, RetryRequestEvent}
-import models.{DailySummary, SubmissionSummary}
+import models.{DailySummary, ListResult, SubmissionSummary}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
@@ -97,10 +97,15 @@ class SubmissionAdminControllerSpec
 
   "list" - {
 
+    val listResult = ListResult(
+      totalCount = 1,
+      summaries = Seq(SubmissionSummary(item))
+    )
+
     "must return a list of submissions for an authorised user" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
-      when(mockSubmissionItemRepository.list(any(), any(), any(), any(), any())).thenReturn(Future.successful(Seq(item)))
+      when(mockSubmissionItemRepository.list(any(), any(), any(), any(), any())).thenReturn(Future.successful(listResult))
       when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
@@ -116,8 +121,7 @@ class SubmissionAdminControllerSpec
 
       status(result) mustEqual OK
 
-      val expectedResult = List(SubmissionSummary("id", SubmissionItemStatus.Submitted, None, clock.instant()))
-      contentAsJson(result) mustEqual Json.toJson(expectedResult)
+      contentAsJson(result) mustEqual Json.toJson(listResult)
 
       verify(mockSubmissionItemRepository).list(
         owner = "owner",

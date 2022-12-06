@@ -17,7 +17,7 @@
 package repositories
 
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, Done}
+import models.{DailySummary, Done, ListResult}
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
@@ -71,7 +71,10 @@ class SubmissionItemRepository @Inject() (
   ),
   extraCodecs =
     Codecs.playFormatSumCodecs(SubmissionItemStatus.format) ++
-    Seq(Codecs.playFormatCodec(DailySummary.mongoFormat))
+    Seq(
+      Codecs.playFormatCodec(ListResult.format),
+      Codecs.playFormatCodec(DailySummary.mongoFormat)
+    )
   ) {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
@@ -132,7 +135,7 @@ class SubmissionItemRepository @Inject() (
            created: Option[LocalDate] = None,
            limit: Int = 50,
            offset: Int = 0
-          ): Future[Seq[SubmissionItem]] = {
+          ): Future[ListResult] = {
 
     val ownerFilter = Filters.equal("owner", owner)
     val statusFilter = status.toList.map(Filters.equal("status", _))
@@ -144,12 +147,29 @@ class SubmissionItemRepository @Inject() (
     }
     val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
 
-    collection
-      .find(filters)
-      .sort(Sorts.descending("created"))
-      .skip(offset)
-      .limit(limit)
-      .toFuture()
+    val findCount = Json.obj(
+      "$let" -> Json.obj(
+        "vars" -> Json.obj(
+          "countValue" -> Json.obj(
+            "$arrayElemAt" -> Json.arr("$totalCount", 0)
+          )
+        ),
+        "in" -> "$$countValue.count"
+      )
+    )
+
+    collection.aggregate[ListResult](List(
+      Aggregates.`match`(filters),
+      Aggregates.sort(Sorts.descending("created")),
+      Aggregates.facet(
+        Facet("totalCount", Aggregates.count()),
+        Facet("summaries", Aggregates.skip(offset), Aggregates.limit(limit))
+      ),
+      Aggregates.project(Json.obj(
+        "totalCount" -> findCount,
+        "summaries" -> "$summaries"
+      ).toDocument())
+    )).head()
   }
 
   def countByStatus(status: SubmissionItemStatus): Future[Long] =

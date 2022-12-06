@@ -61,9 +61,8 @@ class SubmissionAdminController @Inject()(
           ): Action[AnyContent] = {
 
     authorised(owner, read).async { implicit request =>
-      submissionItemRepository.list(owner, status, created, limit, offset).map {
-        _.map(SubmissionSummary.apply)
-      }.map(items => Ok(Json.toJson(items)))
+      submissionItemRepository.list(owner, status, created, limit, offset)
+        .map(listResult => Ok(Json.toJson(listResult)))
     }
   }
 

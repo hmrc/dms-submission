@@ -18,6 +18,7 @@ package models
 
 import models.submission.{SubmissionItem, SubmissionItemStatus}
 import play.api.libs.json.{Json, OFormat}
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
@@ -28,7 +29,7 @@ final case class SubmissionSummary(
                                     lastUpdated: Instant
                                   )
 
-object SubmissionSummary {
+object SubmissionSummary extends MongoJavatimeFormats.Implicits {
 
   implicit lazy val format: OFormat[SubmissionSummary] = Json.format
 
