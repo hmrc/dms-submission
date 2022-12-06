@@ -17,7 +17,7 @@
 package repositories
 
 import cats.implicits.toTraverseOps
-import models.DailySummary
+import models.{DailySummary, SubmissionSummary}
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -187,7 +187,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       insert(item3).futureValue
 
       val result = repository.list("owner").futureValue
-      result must contain theSameElementsAs Seq(item1, item2)
+      result.summaries must contain theSameElementsAs Seq(SubmissionSummary(item1), SubmissionSummary(item2))
+      result.totalCount mustEqual 2
     }
 
     "must return a list of items filtered by status when status is supplied" in {
@@ -199,7 +200,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       List(item1, item2, item3).traverse(insert).futureValue
 
       val result = repository.list("owner", status = Some(SubmissionItemStatus.Failed)).futureValue
-      result must contain only item1
+      result.summaries must contain only SubmissionSummary(item1)
+      result.totalCount mustEqual 1
     }
 
     "must return a list of items filtered by the day the item was created" in {
@@ -211,7 +213,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       List(item1, item2, item3).traverse(insert).futureValue
 
       val result = repository.list("owner", created = Some(LocalDate.now(clock))).futureValue
-      result must contain only item1
+      result.summaries must contain only SubmissionSummary(item1)
+      result.totalCount mustEqual 1
     }
 
     "must apply all filters" in {
@@ -226,7 +229,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       ).traverse(insert).futureValue
 
       val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Some(SubmissionItemStatus.Completed)).futureValue
-      result must contain only item1
+      result.summaries must contain only SubmissionSummary(item1)
+      result.totalCount mustEqual 1
     }
 
     "must limit the number of items to the supplied limit" in {
@@ -238,7 +242,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       List(item1, item2).traverse(insert).futureValue
 
       val result = repository.list("owner", limit = 1).futureValue
-      result must contain only item2
+      result.summaries must contain only SubmissionSummary(item2)
+      result.totalCount mustEqual 2
     }
 
     "must return items offset by the offset" in {
@@ -250,7 +255,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       List(item1, item2).traverse(insert).futureValue
 
       val result = repository.list("owner", limit = 1, offset = 1).futureValue
-      result must contain only item1
+      result.summaries must contain only SubmissionSummary(item1)
+      result.totalCount mustEqual 2
     }
   }
 
