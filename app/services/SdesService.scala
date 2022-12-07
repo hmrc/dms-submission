@@ -38,6 +38,7 @@ class SdesService @Inject() (
 
   private val informationType: String = configuration.get[String]("services.sdes.information-type")
   private val recipientOrSender: String = configuration.get[String]("services.sdes.recipient-or-sender")
+  private val objectStoreLocationPrefix: String = configuration.get[String]("services.sdes.object-store-location-prefix")
 
   def notifyOldestSubmittedItem(): Future[QueryResult] =
     repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
@@ -63,7 +64,7 @@ class SdesService @Inject() (
       informationType = informationType,
       file = FileMetadata(
         recipientOrSender = recipientOrSender,
-        name = objectSummary.location,
+        name = s"$objectStoreLocationPrefix${objectSummary.location}",
         location = objectSummary.location,
         checksum = FileChecksum("md5", base64ToHex(objectSummary.contentMd5)),
         size = objectSummary.contentLength,
