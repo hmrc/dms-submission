@@ -63,7 +63,8 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
   private val app = GuiceApplicationBuilder()
     .configure(
       "service.sdes.information-type" -> "information-type",
-      "service.sdes.recipient-or-sender" -> "recipient-or-sender"
+      "service.sdes.recipient-or-sender" -> "recipient-or-sender",
+      "services.sdes.object-store-location-prefix" -> "http://prefix/"
     )
     .overrides(
       bind[SdesConnector].toInstance(mockSdesConnector),
@@ -105,7 +106,7 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
         "information-type",
         FileMetadata(
           "dms-submission",
-          "location",
+          "http://prefix/location",
           Path.File("location").asUri,
           FileChecksum("md5", value = "85ab21"),
           1337,
