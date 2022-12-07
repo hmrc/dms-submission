@@ -106,8 +106,8 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
         "information-type",
         FileMetadata(
           "dms-submission",
-          "http://prefix/location",
-          Path.File("location").asUri,
+          "location",
+          s"http://prefix/${Path.File("location").asUri}",
           FileChecksum("md5", value = "85ab21"),
           1337,
           List.empty
