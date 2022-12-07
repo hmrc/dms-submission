@@ -64,8 +64,8 @@ class SdesService @Inject() (
       informationType = informationType,
       file = FileMetadata(
         recipientOrSender = recipientOrSender,
-        name = s"$objectStoreLocationPrefix${objectSummary.location}",
-        location = objectSummary.location,
+        name = objectSummary.location,
+        location = s"$objectStoreLocationPrefix${objectSummary.location}",
         checksum = FileChecksum("md5", base64ToHex(objectSummary.contentMd5)),
         size = objectSummary.contentLength,
         properties = List.empty
