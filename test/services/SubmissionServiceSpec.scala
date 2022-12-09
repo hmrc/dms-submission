@@ -133,7 +133,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
-      val fileCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
+      val pathCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
 
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
@@ -141,7 +141,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       val result = service.submit(request, pdf, "test-service")(hc).futureValue
 
-      verify(mockObjectStoreClient).putObject(fileCaptor.capture(), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(pathCaptor.capture(), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
 
       val capturedItem = itemCaptor.getValue
@@ -150,8 +150,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId))(hc)
 
-      val capturedFile = fileCaptor.getValue
-      capturedFile mustEqual Path.Directory("sdes/test-service").file(capturedItem.id)
+      val capturedFile = pathCaptor.getValue
+      capturedFile mustEqual Path.Directory("sdes/test-service").file(s"${capturedItem.id}.zip")
     }
 
     "must use the id in the request if it exists" in {
@@ -165,7 +165,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       val result = service.submit(requestWithCorrelationId, pdf, "test-service")(hc).futureValue
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file(id)), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file(s"$id.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
 
       val capturedItem = itemCaptor.getValue
