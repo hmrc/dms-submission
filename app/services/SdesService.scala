@@ -20,7 +20,7 @@ import connectors.SdesConnector
 import logging.Logging
 import models.Done
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
-import models.submission.{ObjectSummary, QueryResult, SubmissionItemStatus}
+import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
@@ -42,7 +42,7 @@ class SdesService @Inject() (
 
   def notifyOldestSubmittedItem(): Future[QueryResult] =
     repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
-      notify(item.objectSummary, item.sdesCorrelationId)(HeaderCarrier()).map { _ =>
+      notify(item)(HeaderCarrier()).map { _ =>
         item.copy(status = SubmissionItemStatus.Forwarded)
       }
     }.recover { case e =>
@@ -56,21 +56,21 @@ class SdesService @Inject() (
       case QueryResult.NotFound => Future.successful(Done)
     }
 
-  private def notify(objectSummary: ObjectSummary, correlationId: String)(implicit hc: HeaderCarrier): Future[Done] =
-    connector.notify(createRequest(objectSummary, correlationId))
+  private def notify(item: SubmissionItem)(implicit hc: HeaderCarrier): Future[Done] =
+    connector.notify(createRequest(item))
 
-  private def createRequest(objectSummary: ObjectSummary, correlationId: String): FileNotifyRequest =
+  private def createRequest(item: SubmissionItem): FileNotifyRequest =
     FileNotifyRequest(
       informationType = informationType,
       file = FileMetadata(
         recipientOrSender = recipientOrSender,
-        name = objectSummary.location,
-        location = s"$objectStoreLocationPrefix${objectSummary.location}",
-        checksum = FileChecksum("md5", base64ToHex(objectSummary.contentMd5)),
-        size = objectSummary.contentLength,
+        name = s"${item.id}.zip",
+        location = s"$objectStoreLocationPrefix${item.objectSummary.location}",
+        checksum = FileChecksum("md5", base64ToHex(item.objectSummary.contentMd5)),
+        size = item.objectSummary.contentLength,
         properties = List.empty
       ),
-      audit = FileAudit(correlationId)
+      audit = FileAudit(item.sdesCorrelationId)
     )
 
   private def base64ToHex(string: String): String =
