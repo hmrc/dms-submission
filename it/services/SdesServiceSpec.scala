@@ -105,12 +105,12 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
       val expectedRequest = FileNotifyRequest(
         "information-type",
         FileMetadata(
-          "dms-submission",
-          "location",
-          s"http://prefix/${Path.File("location").asUri}",
-          FileChecksum("md5", value = "85ab21"),
-          1337,
-          List.empty
+          recipientOrSender = "dms-submission",
+          name = s"${item.id}.zip",
+          location = s"http://prefix/${Path.File("location").asUri}",
+          checksum = FileChecksum("md5", value = "85ab21"),
+          size = 1337,
+          properties = List.empty
         ),
         FileAudit(item.sdesCorrelationId)
       )
