@@ -17,9 +17,8 @@
 package services
 
 import audit.{AuditService, SubmitRequestEvent}
-import config.FileSystemExecutionContext
-import models.{Done, Pdf}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
+import models.{Done, Pdf}
 import play.api.Logging
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
@@ -40,13 +39,12 @@ class SubmissionService @Inject() (
                                     auditService: AuditService,
                                     submissionItemRepository: SubmissionItemRepository,
                                     clock: Clock,
-                                    fileSystemExecutionContext: FileSystemExecutionContext
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.id.getOrElse(UUID.randomUUID().toString)
-      val path = Path.Directory(s"sdes/$owner").file(id)
+      val path = Path.Directory(s"sdes/$owner").file(s"$id.zip")
       for {
         zip           <- zipService.createZip(workDir, pdf, request.metadata, id)
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
@@ -75,7 +73,6 @@ class SubmissionService @Inject() (
     )
 
   private def auditRequest(request: SubmissionRequest, item: SubmissionItem)(implicit hc: HeaderCarrier): Future[Done] =
-//    Future.failed(new RuntimeException())
     Future.successful {
       val event = SubmitRequestEvent(
         id = item.id,
