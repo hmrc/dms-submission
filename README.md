@@ -144,6 +144,12 @@ The possible responses for this are:
 | UNAUTHORIZED (401) | `{}`                                            | This status means that you have incorrectly configured the auth token for your request                                                            |
 | FORBIDDEN (403)    | `{}`                                            | This status means that you have incorrectly configured the internal-auth configuration for your service                                           |
 
+### Admin frontend
+
+There is an [admin frontend](https://github.com/hmrc/dms-submission-admin-frontend) available that allows you to see 
+the status of different submissions from services you own. It is also possible to use this locally to help check your
+integration. See the repo for details
+
 ### License
 
 This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").
