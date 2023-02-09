@@ -42,8 +42,8 @@ class ZipService @Inject() (
 
   def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    pdf.file.copyTo(tmpDir / "iform.pdf")
-    val metadataFile = tmpDir / "metadata.xml"
+    pdf.file.copyTo(tmpDir / s"${correlationId}iform.pdf")
+    val metadataFile = tmpDir / s"${correlationId}metadata.xml"
     XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, correlationId)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)

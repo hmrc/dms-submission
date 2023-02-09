@@ -1,5 +1,4 @@
-import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
-import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
+import uk.gov.hmrc.DefaultBuildSettings.{integrationTestSettings, targetJvm}
 import play.sbt.routes.RoutesKeys
 
 lazy val microservice = Project("dms-submission", file("."))
@@ -8,6 +7,7 @@ lazy val microservice = Project("dms-submission", file("."))
   .settings(
     majorVersion        := 0,
     scalaVersion        := "2.13.10",
+    targetJvm           := "jvm-11",
     libraryDependencies ++= AppDependencies.compile ++ AppDependencies.test,
     // https://www.scala-lang.org/2021/01/12/configuring-and-suppressing-warnings.html
     // suppress warnings in generated routes files
@@ -23,7 +23,6 @@ lazy val microservice = Project("dms-submission", file("."))
       "java.time.LocalDate"
     )
   )
-  .settings(publishingSettings: _*)
   .settings(inConfig(Test)(testSettings): _*)
   .configs(IntegrationTest)
   .settings(integrationTestSettings(): _*)

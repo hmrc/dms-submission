@@ -80,10 +80,10 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       zip.unzipTo(tmpDir)
 
       zip.parent mustEqual workDir
-      val unzippedPdf = tmpDir / "iform.pdf"
+      val unzippedPdf = tmpDir / "correlationIdiform.pdf"
       unzippedPdf.isSameContentAs(pdfFile) mustBe true
 
-      val unzippedMetadata = tmpDir / "metadata.xml"
+      val unzippedMetadata = tmpDir / "correlationIdmetadata.xml"
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
     }
