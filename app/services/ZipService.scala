@@ -38,7 +38,8 @@ class ZipService @Inject() (
   private val mimeType: String = configuration.get[String]("metadata.mimeType")
   private val target: String = configuration.get[String]("metadata.target")
 
-  private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+  private val readableDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+  private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
 
   def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
@@ -59,12 +60,12 @@ class ZipService @Inject() (
           <store>{metadata.store}</store>
           <source>{metadata.source}</source>
           <target>{target}</target>
-          <reconciliation_id>{id}</reconciliation_id>
+          <reconciliation_id>{s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"}</reconciliation_id>
         </header>
         <metadata>
           { Seq(
-          createAttribute("hmrc_time_of_receipt", "time", dateTimeFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))),
-          createAttribute("time_xml_created", "time", dateTimeFormatter.format(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))),
+          createAttribute("hmrc_time_of_receipt", "time", readableDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))),
+          createAttribute("time_xml_created", "time", readableDateFormatter.format(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))),
           createAttribute("submission_reference", "string", id),
           createAttribute("form_id", "string", metadata.formId),
           createAttribute("number_pages", "integer", numberOfPages.toString),

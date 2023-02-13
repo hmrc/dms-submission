@@ -8,21 +8,21 @@
             <store>true</store>
             <source>source</source>
             <target>target</target>
-            <reconciliation_id>correlationId</reconciliation_id>
+            <reconciliation_id>correlationId-20220201123045</reconciliation_id>
         </header>
         <metadata>
             <attribute>
                 <attribute_name>hmrc_time_of_receipt</attribute_name>
                 <attribute_type>time</attribute_type>
                 <attribute_values>
-                    <attribute_value>01/02/2022 00:00:00</attribute_value>
+                    <attribute_value>01/02/2022 12:30:45</attribute_value>
                 </attribute_values>
             </attribute>
             <attribute>
                 <attribute_name>time_xml_created</attribute_name>
                 <attribute_type>time</attribute_type>
                 <attribute_values>
-                    <attribute_value>02/03/2022 00:00:00</attribute_value>
+                    <attribute_value>02/03/2022 12:30:45</attribute_value>
                 </attribute_values>
             </attribute>
             <attribute>
