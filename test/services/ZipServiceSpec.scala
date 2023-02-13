@@ -31,7 +31,7 @@ import scala.xml.{Utility, XML}
 
 class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience {
 
-  private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 0, 0, 0, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+  private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 12, 30, 45, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
 
   private val app = GuiceApplicationBuilder()
     .overrides(
@@ -62,7 +62,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val metadata = SubmissionMetadata(
         store = true,
         source = "source",
-        timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0, 0).toInstant(ZoneOffset.UTC),
+        timeOfReceipt = LocalDateTime.of(2022, 2, 1, 12, 30, 45, 0).toInstant(ZoneOffset.UTC),
         formId = "formId",
         customerId = "customerId",
         submissionMark = "submissionMark",
