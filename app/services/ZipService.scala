@@ -40,32 +40,32 @@ class ZipService @Inject() (
 
   private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
 
-  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, correlationId: String): Future[File] = Future {
+  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    pdf.file.copyTo(tmpDir / s"${correlationId}iform.pdf")
-    val metadataFile = tmpDir / s"${correlationId}metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, correlationId)), xmlDecl = true)
+    pdf.file.copyTo(tmpDir / s"${id}iform.pdf")
+    val metadataFile = tmpDir / s"${id}metadata.xml"
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, correlationId: String): Node =
+  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, id: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
-          <title>{correlationId}</title>
+          <title>{id}</title>
           <format>{format}</format>
           <mime_type>{mimeType}</mime_type>
           <store>{metadata.store}</store>
           <source>{metadata.source}</source>
           <target>{target}</target>
-          <reconciliation_id>{correlationId}</reconciliation_id>
+          <reconciliation_id>{id}</reconciliation_id>
         </header>
         <metadata>
           { Seq(
           createAttribute("hmrc_time_of_receipt", "time", dateTimeFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))),
           createAttribute("time_xml_created", "time", dateTimeFormatter.format(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))),
-          createAttribute("submission_reference", "string", correlationId),
+          createAttribute("submission_reference", "string", id),
           createAttribute("form_id", "string", metadata.formId),
           createAttribute("number_pages", "integer", numberOfPages.toString),
           createAttribute("source", "string", metadata.source),
