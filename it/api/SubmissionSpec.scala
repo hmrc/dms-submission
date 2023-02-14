@@ -142,7 +142,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
       .post(
         Source(Seq(
-          DataPart("correlationId", id),
+          DataPart("submissionReference", id),
           DataPart("callbackUrl", s"http://localhost:${server.port()}/callback"),
           DataPart("metadata.store", "true"),
           DataPart("metadata.source", "api-tests"),

@@ -36,7 +36,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   val form: Form[SubmissionRequest] = Form(
     mapping(
-      "correlationId" -> optional(text),
+      "submissionReference" -> optional(text),
       "callbackUrl" -> text
         .verifying(validateUrl),
       "metadata" -> mapping(

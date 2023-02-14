@@ -90,7 +90,7 @@ The `dms-submission/submit` endpoint accepts a request with a `Multipart/Form-Da
 
 | Field name                  | Description                                                                                                                                                                   | Type      |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
-| id                          | This field is optional, if provided callbacks will use this instead of a randomly generated ID to inform you of the status of your submission                                 | String    |
+| submissionReference         | This field is optional, if provided callbacks will use this instead of a randomly generated ID as the submission reference in DMS, and to inform you of status updates        | String    |
 | callbackUrl                 | This is the url which should be used to notify you of the outcome of your submission. This should be a fully-qualified URL and can be `localhost` based in local environments | String    |
 | form                        | This field is the actual pdf which should be sent to DMS                                                                                                                      | File      |
 | metadata.store              | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | Boolean   |

@@ -43,7 +43,7 @@ class SubmissionService @Inject() (
 
   def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
     fileService.withWorkingDirectory { workDir =>
-      val id = request.id.getOrElse(UUID.randomUUID().toString)
+      val id = request.submissionReference.getOrElse(UUID.randomUUID().toString)
       val path = Path.Directory(s"sdes/$owner").file(s"$id.zip")
       for {
         zip           <- zipService.createZip(workDir, pdf, request.metadata, id)

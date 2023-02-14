@@ -89,7 +89,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
       when(mockSubmissionService.submit(any(), any(), any())(any()))
-        .thenReturn(Future.successful("correlationId"))
+        .thenReturn(Future.successful("submissionReference"))
 
       val tempFile = SingletonTemporaryFileCreator.create()
       val betterTempFile = File(tempFile.toPath)
@@ -142,7 +142,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       val result = route(app, request).value
 
       status(result) mustEqual ACCEPTED
-      contentAsJson(result) mustEqual Json.obj("id" -> "correlationId")
+      contentAsJson(result) mustEqual Json.obj("id" -> "submissionReference")
 
       verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture(), eqTo("test-service"))(any())
 
