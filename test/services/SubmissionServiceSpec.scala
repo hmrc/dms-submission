@@ -51,6 +51,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
   private val mockZipService = mock[ZipService]
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
   private val mockAuditService = mock[AuditService]
+  private val mockUuidService = mock[UuidService]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -58,7 +59,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       mockObjectStoreClient,
       mockZipService,
       mockSubmissionItemRepository,
-      mockAuditService
+      mockAuditService,
+      mockUuidService
     )
   }
 
@@ -70,7 +72,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         bind[ZipService].toInstance(mockZipService),
         bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
         bind[AuditService].toInstance(mockAuditService),
-        bind[Clock].toInstance(clock)
+        bind[Clock].toInstance(clock),
+        bind[UuidService].toInstance(mockUuidService)
       )
       .build()
 
@@ -105,7 +108,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     )
     val item = SubmissionItem(
-      id = "id",
+      id = "uuid1",
       owner = "test-service",
       callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
@@ -118,12 +121,12 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       failureReason = None,
       created = clock.instant(),
       lastUpdated = clock.instant(),
-      sdesCorrelationId = "sdesCorrelationId"
+      sdesCorrelationId = "uuid2"
     )
     val expectedAudit = SubmitRequestEvent(
-      id = "id",
+      id = "uuid1",
       owner = "test-service",
-      sdesCorrelationId = "sdesCorrelationId",
+      sdesCorrelationId = "uuid2",
       customerId = "customerId",
       formId = "formId",
       classificationType = "classificationType",
@@ -132,48 +135,32 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     )
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
-      val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
-      val pathCaptor: ArgumentCaptor[Path.File] = ArgumentCaptor.forClass(classOf[Path.File])
-
+      when(mockUuidService.random()).thenReturn("uuid1").thenReturn("uuid2")
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
-      val result = service.submit(request, pdf, "test-service")(hc).futureValue
+      service.submit(request, pdf, "test-service")(hc).futureValue mustEqual "uuid1"
 
-      verify(mockObjectStoreClient).putObject(pathCaptor.capture(), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
-      verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
-
-      val capturedItem = itemCaptor.getValue
-      capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
-      result mustEqual capturedItem.id
-
-      verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId))(hc)
-
-      val capturedFile = pathCaptor.getValue
-      capturedFile mustEqual Path.Directory("sdes/test-service").file(s"${capturedItem.id}.zip")
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("uuid2.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockSubmissionItemRepository).insert(item)
+      verify(mockAuditService).auditSubmitRequest(expectedAudit)(hc)
     }
 
     "must use the id in the request if it exists" in {
-      val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
-      val id = "id"
-      val requestWithCorrelationId = request.copy(submissionReference = Some(id))
+      val submissionReference = "id"
+      val requestWithSubmissionReference = request.copy(submissionReference = Some(submissionReference))
 
+      when(mockUuidService.random()).thenReturn("uuid2")
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
-      val result = service.submit(requestWithCorrelationId, pdf, "test-service")(hc).futureValue
+      service.submit(requestWithSubmissionReference, pdf, "test-service")(hc).futureValue mustEqual submissionReference
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file(s"$id.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
-      verify(mockSubmissionItemRepository).insert(itemCaptor.capture())
-
-      val capturedItem = itemCaptor.getValue
-      capturedItem mustEqual item.copy(id = capturedItem.id, sdesCorrelationId = capturedItem.sdesCorrelationId)
-      capturedItem.id mustEqual id
-      result mustEqual id
-
-      verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(sdesCorrelationId = capturedItem.sdesCorrelationId))(hc)
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("uuid2.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockSubmissionItemRepository).insert(item.copy(id = submissionReference))
+      verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = submissionReference))(hc)
     }
 
     "must fail when the fail service fails to create a zip file" in {

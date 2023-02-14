@@ -39,25 +39,27 @@ class SubmissionService @Inject() (
                                     auditService: AuditService,
                                     submissionItemRepository: SubmissionItemRepository,
                                     clock: Clock,
+                                    uuidService: UuidService
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
     fileService.withWorkingDirectory { workDir =>
-      val id = request.submissionReference.getOrElse(UUID.randomUUID().toString)
-      val path = Path.Directory(s"sdes/$owner").file(s"$id.zip")
+      val id = request.submissionReference.getOrElse(uuidService.random())
+      val correlationId = uuidService.random()
+      val path = Path.Directory(s"sdes/$owner").file(s"$correlationId.zip")
       for {
         zip           <- zipService.createZip(workDir, pdf, request.metadata, id)
         objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
-        item          =  createSubmissionItem(request, objectSummary, id, owner)
+        item          =  createSubmissionItem(request, objectSummary, id, owner, correlationId)
         _             <- auditRequest(request, item)
         _             <- submissionItemRepository.insert(item)
       } yield item.id
     }
 
-  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, id: String, service: String): SubmissionItem =
+  private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, id: String, owner: String, correlationId: String): SubmissionItem =
     SubmissionItem(
       id = id,
-      owner = service,
+      owner = owner,
       callbackUrl = request.callbackUrl,
       status = SubmissionItemStatus.Submitted,
       objectSummary = ObjectSummary(
@@ -69,7 +71,7 @@ class SubmissionService @Inject() (
       failureReason = None,
       created = clock.instant(),
       lastUpdated = clock.instant(),
-      sdesCorrelationId = UUID.randomUUID().toString
+      sdesCorrelationId = correlationId
     )
 
   private def auditRequest(request: SubmissionRequest, item: SubmissionItem)(implicit hc: HeaderCarrier): Future[Done] =
