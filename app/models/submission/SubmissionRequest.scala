@@ -19,7 +19,7 @@ package models.submission
 import play.api.libs.json.{Format, Json}
 
 final case class SubmissionRequest(
-                                    id: Option[String],
+                                    submissionReference: Option[String],
                                     callbackUrl: String,
                                     metadata: SubmissionMetadata
                                   )

@@ -157,7 +157,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     "must use the id in the request if it exists" in {
       val itemCaptor: ArgumentCaptor[SubmissionItem] = ArgumentCaptor.forClass(classOf[SubmissionItem])
       val id = "id"
-      val requestWithCorrelationId = request.copy(id = Some(id))
+      val requestWithCorrelationId = request.copy(submissionReference = Some(id))
 
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
