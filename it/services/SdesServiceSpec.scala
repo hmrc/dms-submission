@@ -106,7 +106,7 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
         "information-type",
         FileMetadata(
           recipientOrSender = "dms-submission",
-          name = s"${item.id}.zip",
+          name = s"${item.sdesCorrelationId}.zip",
           location = s"http://prefix/${Path.File("location").asUri}",
           checksum = FileChecksum("md5", value = "85ab21"),
           size = 1337,
