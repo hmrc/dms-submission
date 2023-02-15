@@ -20,11 +20,11 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import audit.{AuditService, SubmitRequestEvent}
 import better.files.File
-import models.{Done, Pdf}
 import models.submission._
+import models.{Done, Pdf}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
+import org.mockito.Mockito
 import org.mockito.Mockito.{verify, when}
-import org.mockito.{ArgumentCaptor, Mockito}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
