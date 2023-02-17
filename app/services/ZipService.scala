@@ -43,14 +43,15 @@ class ZipService @Inject() (
 
   def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    pdf.file.copyTo(tmpDir / s"${id}iform.pdf")
-    val metadataFile = tmpDir / s"${id}metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id)), xmlDecl = true)
+    val reconciliationId = s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+    pdf.file.copyTo(tmpDir / s"$reconciliationId-iform.pdf")
+    val metadataFile = tmpDir / s"$reconciliationId-metadata.xml"
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, id: String): Node =
+  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, id: String, reconciliationId: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
@@ -60,7 +61,7 @@ class ZipService @Inject() (
           <store>{metadata.store}</store>
           <source>{metadata.source}</source>
           <target>{target}</target>
-          <reconciliation_id>{s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"}</reconciliation_id>
+          <reconciliation_id>{reconciliationId}</reconciliation_id>
         </header>
         <metadata>
           { Seq(
