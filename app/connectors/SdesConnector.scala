@@ -17,6 +17,7 @@
 package connectors
 
 import config.Service
+import logging.Logging
 import models.Done
 import models.sdes.FileNotifyRequest
 import play.api.Configuration
@@ -34,26 +35,28 @@ import scala.util.control.NoStackTrace
 class SdesConnector @Inject() (
                                 httpClient: HttpClientV2,
                                 configuration: Configuration
-                              )(implicit ec: ExecutionContext) {
+                              )(implicit ec: ExecutionContext) extends Logging {
 
   private val service: Service = configuration.get[Service]("microservice.services.sdes")
   private val clientId: String = configuration.get[String]("services.sdes.client-id")
   private val path: Option[String] = Some(configuration.get[String]("microservice.services.sdes.path")).filter(_.nonEmpty)
   private val baseUrl: String = List(Some(service.baseUrl), path).flatten.mkString("/")
 
-  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] =
+  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] = {
     httpClient
       .post(url"$baseUrl/notification/fileready")
       .withBody(Json.toJson(request))
       .setHeader("x-client-id" -> clientId)
       .execute
       .flatMap { response =>
+        logger.debug(Json.stringify(Json.obj("request" -> request, "status" -> response.status)))
         if (response.status == NO_CONTENT) {
           Future.successful(Done)
         } else {
           Future.failed(SdesConnector.UnexpectedResponseException(response.status, response.body))
         }
       }
+  }
 }
 
 object SdesConnector {
