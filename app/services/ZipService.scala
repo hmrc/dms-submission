@@ -40,12 +40,14 @@ class ZipService @Inject() (
 
   private val readableDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
   def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
     val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
     val reconciliationId = s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
-    pdf.file.copyTo(tmpDir / s"$reconciliationId-iform.pdf")
-    val metadataFile = tmpDir / s"$reconciliationId-metadata.xml"
+    val filenamePrefix = s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+    pdf.file.copyTo(tmpDir / s"$filenamePrefix-iform.pdf")
+    val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
     XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
