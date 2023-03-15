@@ -36,7 +36,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   val form: Form[SubmissionRequest] = Form(
     mapping(
-      "submissionReference" -> optional(text),
+      "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
       "callbackUrl" -> text
         .verifying(validateUrl),
       "metadata" -> mapping(
@@ -74,4 +74,13 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   private def parseDateTime(string: String): LocalDateTime =
     LocalDateTime.parse(string, DateTimeFormatter.ISO_DATE_TIME)
+
+  private def validateSubmissionReference: Constraint[String] =
+    Constraint { string =>
+      if (string.matches("""^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$""")) {
+        Valid
+      } else {
+        Invalid("submissionReference.invalid")
+      }
+    }
 }
