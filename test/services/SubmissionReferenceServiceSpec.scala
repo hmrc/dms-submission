@@ -16,11 +16,22 @@
 
 package services
 
-import java.util.UUID
-import javax.inject.{Inject, Singleton}
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-@Singleton
-class UuidService @Inject() () {
+class SubmissionReferenceServiceSpec extends AnyFreeSpec with Matchers {
 
-  def random(): String = UUID.randomUUID().toString
+  ".random()" - {
+
+    "must generate valid submission references" in {
+
+      val service = new SubmissionReferenceService()
+      val ids = Vector.fill(100)(service.random())
+      val pattern = """^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$"""
+
+      ids.foreach { id =>
+        id must fullyMatch regex pattern
+      }
+    }
+  }
 }

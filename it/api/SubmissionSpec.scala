@@ -40,7 +40,7 @@ import play.api.mvc.MultipartFormData.{DataPart, FilePart}
 import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
 import repositories.SubmissionItemRepository
-import services.UuidService
+import services.SubmissionReferenceService
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.WireMockHelper
@@ -53,7 +53,7 @@ import java.util.UUID
 
 class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
 
-  private val mockUuidService = mock[UuidService]
+  private val mockUuidService = mock[SubmissionReferenceService]
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private val httpClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
   private val internalAuthBaseUrl: String = "http://localhost:8470"
@@ -67,7 +67,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .overrides(
       bind[MongoComponent].toInstance(mongoComponent),
-      bind[UuidService].toInstance(mockUuidService)
+      bind[SubmissionReferenceService].toInstance(mockUuidService)
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
