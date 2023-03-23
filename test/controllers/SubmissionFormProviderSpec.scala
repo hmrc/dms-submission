@@ -76,7 +76,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       form.bind(completeData + ("submissionReference" -> "")).value.value.submissionReference mustBe None
     }
 
-    "must bind when the submission reference does not include hyphens" in {
+    "must bind when the submission reference includes hyphens" in {
       form.bind(completeData + ("submissionReference" -> "1234-5678-90AB")).value.value.submissionReference.value mustEqual "1234-5678-90AB"
     }
 
