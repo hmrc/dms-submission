@@ -30,10 +30,10 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatest.time.{Seconds, Span}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
-import play.api.{Application, Configuration}
+import play.api.Application
 import play.api.http.Status.{ACCEPTED, CREATED, NO_CONTENT, OK}
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.mvc.MultipartFormData.{DataPart, FilePart}
@@ -41,23 +41,17 @@ import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
 import repositories.SubmissionItemRepository
 import services.UuidService
+import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.WireMockHelper
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.time.{Clock, LocalDateTime}
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
-import scala.concurrent.ExecutionContext
 
 class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
-
-  override protected def repository = new SubmissionItemRepository(
-    mongoComponent = mongoComponent,
-    clock = Clock.systemUTC(),
-    configuration = Configuration("lock-ttl" -> 30)
-  )(ExecutionContext.global)
 
   private val mockUuidService = mock[UuidService]
   private implicit val actorSystem: ActorSystem = ActorSystem()
@@ -67,10 +61,13 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
   private val clientAuthToken: String = UUID.randomUUID().toString
 
+  override lazy val repository: SubmissionItemRepository =
+    app.injector.instanceOf[SubmissionItemRepository]
+
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .overrides(
-      bind[UuidService].toInstance(mockUuidService),
-      bind[SubmissionItemRepository].toInstance(repository)
+      bind[MongoComponent].toInstance(mongoComponent),
+      bind[UuidService].toInstance(mockUuidService)
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
