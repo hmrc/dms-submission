@@ -88,20 +88,20 @@ The `dms-submission/submit` endpoint accepts a request with a `Multipart/Form-Da
 
 > TODO - Provide better documentation for metadata fields when we know more about them
 
-| Field name                  | Description                                                                                                                                                                   | Type      |
-|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
-| submissionReference         | This field is optional, if provided callbacks will use this instead of a randomly generated ID as the submission reference in DMS, and to inform you of status updates        | String    |
-| callbackUrl                 | This is the url which should be used to notify you of the outcome of your submission. This should be a fully-qualified URL and can be `localhost` based in local environments | String    |
-| form                        | This field is the actual pdf which should be sent to DMS                                                                                                                      | File      |
-| metadata.store              | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | Boolean   |
-| metadata.source             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.timeOfReceipt      | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | Timestamp |
-| metadata.formId             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.customerId         | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.submissionMark     | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.casKey             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.classificationType | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
-| metadata.businessArea       | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                           | String    |
+| Field name                  | Description                                                                                                                                                                                                                                                                                                             | Type      |
+|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| submissionReference         | This field is optional, if provided callbacks will use this instead of a randomly generated ID as the submission reference in DMS, and to inform you of status updates. The format is 12 uppercase alphanumeric characters, optionally split into 4 character groups separated by dashes. For Example: `A1B2-C3D4-E5F6` | String    |
+| callbackUrl                 | This is the url which should be used to notify you of the outcome of your submission. This should be a fully-qualified URL and can be `localhost` based in local environments                                                                                                                                           | String    |
+| form                        | This field is the actual pdf which should be sent to DMS                                                                                                                                                                                                                                                                | File      |
+| metadata.store              | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | Boolean   |
+| metadata.source             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.timeOfReceipt      | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | Timestamp |
+| metadata.formId             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.customerId         | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.submissionMark     | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.casKey             | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.classificationType | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
+| metadata.businessArea       | This will be used in the `metadata.xml` for GIS/DMS                                                                                                                                                                                                                                                                     | String    |
 
 Here is an example of creating this request using the `HttpClientV2` from `http-verbs`
 
@@ -109,7 +109,7 @@ Here is an example of creating this request using the `HttpClientV2` from `http-
 val clientAuthToken = configuration.get[String]("internal-auth.token")
 
 httpClient.url("http://localhost:8222/dms-submission/submit")
-  .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
+  .setHeader(AUTHORIZATION -> clientAuthToken)
   .post(
     Source(Seq(
       DataPart("callbackUrl", s"http://localhost:<MY_SERVICE_PORT>/callback"),
@@ -126,11 +126,10 @@ httpClient.url("http://localhost:8222/dms-submission/submit")
         key = "form",
         filename = "form.pdf",
         contentType = Some("application/octet-stream"),
-        ref = Source.single(ByteString("Hello, World!")),
-        fileSize = 1337
+        ref = Source.single(ByteString("Hello, World!"))
       )
     ))
-  )
+  ).execute
 ```
 
 > NOTE: The `FilePart` above takes any `Source[ByteString, _]`
