@@ -33,7 +33,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
   private val completeRequest = SubmissionRequest(
-    submissionReference = Some("submissionReference"),
+    submissionReference = Some("1234567890AB"),
     callbackUrl = "http://test-service.protected.mdtp/callback",
     metadata = SubmissionMetadata(
       store = false,
@@ -49,7 +49,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   )
 
   private val completeData = Map(
-    "submissionReference" -> "submissionReference",
+    "submissionReference" -> "1234567890AB",
     "callbackUrl" -> "http://test-service.protected.mdtp/callback",
     "metadata.store" -> "false",
     "metadata.source" -> "source",
@@ -68,12 +68,21 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "submissionReference" - {
 
-    "must being `None` if there is no submissionReference" in {
+    "must bind `None` if there is no submissionReference" in {
       form.bind(completeData - "submissionReference").value.value.submissionReference mustBe None
     }
 
     "must bind `None` if submissionReference is an empty string" in {
       form.bind(completeData + ("submissionReference" -> "")).value.value.submissionReference mustBe None
+    }
+
+    "must bind when the submission reference includes hyphens" in {
+      form.bind(completeData + ("submissionReference" -> "1234-5678-90AB")).value.value.submissionReference.value mustEqual "1234-5678-90AB"
+    }
+
+    "must fail if the value is invalid" in {
+      val boundField = form.bind(completeData + ("submissionReference" -> "foobar"))("submissionReference")
+      boundField.error.value.message mustEqual "submissionReference.invalid"
     }
   }
 

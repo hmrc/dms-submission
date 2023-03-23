@@ -20,7 +20,7 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import com.github.tomakehurst.wiremock.client.WireMock._
-import models.submission.{SubmissionItemStatus, SubmissionResponse}
+import models.submission.{SubmissionItem, SubmissionItemStatus, SubmissionResponse}
 import org.mockito.Mockito.when
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -32,14 +32,17 @@ import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.http.Status.{ACCEPTED, CREATED, NO_CONTENT, OK}
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.mvc.MultipartFormData.{DataPart, FilePart}
 import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
-import services.UuidService
+import repositories.SubmissionItemRepository
+import services.SubmissionReferenceService
+import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.WireMockHelper
 
 import java.net.URLEncoder
@@ -48,9 +51,9 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
+class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
 
-  private val mockUuidService = mock[UuidService]
+  private val mockUuidService = mock[SubmissionReferenceService]
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private val httpClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
   private val internalAuthBaseUrl: String = "http://localhost:8470"
@@ -58,9 +61,13 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
   private val clientAuthToken: String = UUID.randomUUID().toString
 
+  override lazy val repository: SubmissionItemRepository =
+    app.injector.instanceOf[SubmissionItemRepository]
+
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .overrides(
-      bind[UuidService].toInstance(mockUuidService)
+      bind[MongoComponent].toInstance(mongoComponent),
+      bind[SubmissionReferenceService].toInstance(mockUuidService)
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
@@ -92,7 +99,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
   "Successful submissions must return ACCEPTED and receive callbacks confirming files have been processed" in {
 
-    val submissionReference = UUID.randomUUID().toString
+    val submissionReference = "0000-0000-0001"
     val sdesCorrelationId = UUID.randomUUID().toString
 
     when(mockUuidService.random())
@@ -143,7 +150,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
   "Failed submissions must respond to the callbackUrl with a `Failed` status" in {
 
-    val submissionReference = UUID.randomUUID().toString
+    val submissionReference = "000000000002"
     val sdesCorrelationId = UUID.randomUUID().toString
     val timeOfReceipt = LocalDateTime.now()
 
