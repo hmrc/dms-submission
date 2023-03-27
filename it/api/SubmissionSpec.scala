@@ -40,7 +40,7 @@ import play.api.mvc.MultipartFormData.{DataPart, FilePart}
 import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
 import repositories.SubmissionItemRepository
-import services.SubmissionReferenceService
+import services.{SubmissionReferenceService, UuidService}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.WireMockHelper
@@ -53,7 +53,8 @@ import java.util.UUID
 
 class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
 
-  private val mockUuidService = mock[SubmissionReferenceService]
+  private val mockSubmissionReferenceService = mock[SubmissionReferenceService]
+  private val mockUuidService = mock[UuidService]
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private val httpClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
   private val internalAuthBaseUrl: String = "http://localhost:8470"
@@ -67,7 +68,8 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .overrides(
       bind[MongoComponent].toInstance(mongoComponent),
-      bind[SubmissionReferenceService].toInstance(mockUuidService)
+      bind[SubmissionReferenceService].toInstance(mockSubmissionReferenceService),
+      bind[UuidService].toInstance(mockUuidService)
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
@@ -102,8 +104,10 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
     val submissionReference = "0000-0000-0001"
     val sdesCorrelationId = UUID.randomUUID().toString
 
-    when(mockUuidService.random())
+    when(mockSubmissionReferenceService.random())
       .thenReturn(submissionReference)
+
+    when(mockUuidService.random())
       .thenReturn(sdesCorrelationId)
 
     server.stubFor(
@@ -153,6 +157,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
     val submissionReference = "000000000002"
     val sdesCorrelationId = UUID.randomUUID().toString
     val timeOfReceipt = LocalDateTime.now()
+
+    when(mockSubmissionReferenceService.random())
+      .thenReturn(submissionReference)
 
     when(mockUuidService.random())
       .thenReturn(sdesCorrelationId)
