@@ -54,7 +54,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
         "classificationType" -> text,
         "businessArea" -> text,
       )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
-    )(SubmissionRequest.apply)(SubmissionRequest.unapply)
+    )(SubmissionRequest(_, _, _, Seq.empty))(request => Some((request.submissionReference, request.callbackUrl, request.metadata)))
   )
 
   private def validateUrl: Constraint[String] =

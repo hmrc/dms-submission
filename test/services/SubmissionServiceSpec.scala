@@ -93,7 +93,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       classificationType = "classificationType",
       businessArea = "businessArea"
     )
-    val request = SubmissionRequest(None, "callbackUrl", metadata)
+    val request = SubmissionRequest(None, "callbackUrl", metadata, Seq.empty)
 
     val pdfFile = File.newTemporaryFile()
       .deleteOnExit()

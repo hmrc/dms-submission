@@ -21,7 +21,8 @@ import play.api.libs.json.{Format, Json}
 final case class SubmissionRequest(
                                     submissionReference: Option[String],
                                     callbackUrl: String,
-                                    metadata: SubmissionMetadata
+                                    metadata: SubmissionMetadata,
+                                    attachments: Seq[ObjectSummary]
                                   )
 
 object SubmissionRequest {

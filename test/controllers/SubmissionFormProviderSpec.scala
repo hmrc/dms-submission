@@ -45,7 +45,8 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       casKey = "casKey",
       classificationType = "classificationType",
       businessArea = "businessArea"
-    )
+    ),
+    attachments = Seq.empty
   )
 
   private val completeData = Map(
