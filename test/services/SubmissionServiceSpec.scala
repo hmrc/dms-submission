@@ -52,6 +52,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
   private val mockSubmissionItemRepository = mock[SubmissionItemRepository]
   private val mockAuditService = mock[AuditService]
   private val mockSubmissionReferenceService = mock[SubmissionReferenceService]
+  private val mockUuidService = mock[UuidService]
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -60,7 +61,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       mockZipService,
       mockSubmissionItemRepository,
       mockAuditService,
-      mockSubmissionReferenceService
+      mockUuidService
     )
   }
 
@@ -73,7 +74,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         bind[SubmissionItemRepository].toInstance(mockSubmissionItemRepository),
         bind[AuditService].toInstance(mockAuditService),
         bind[Clock].toInstance(clock),
-        bind[SubmissionReferenceService].toInstance(mockSubmissionReferenceService)
+        bind[SubmissionReferenceService].toInstance(mockSubmissionReferenceService),
+        bind[UuidService].toInstance(mockUuidService)
       )
       .build()
 
@@ -108,7 +110,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     )
     val item = SubmissionItem(
-      id = "submissionReference1",
+      id = "submissionReference",
       owner = "test-service",
       callbackUrl = "callbackUrl",
       status = SubmissionItemStatus.Submitted,
@@ -121,12 +123,12 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       failureReason = None,
       created = clock.instant(),
       lastUpdated = clock.instant(),
-      sdesCorrelationId = "submissionReference2"
+      sdesCorrelationId = "correlationId"
     )
     val expectedAudit = SubmitRequestEvent(
-      id = "submissionReference1",
+      id = "submissionReference",
       owner = "test-service",
-      sdesCorrelationId = "submissionReference2",
+      sdesCorrelationId = "correlationId",
       customerId = "customerId",
       formId = "formId",
       classificationType = "classificationType",
@@ -135,14 +137,15 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     )
 
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
-      when(mockSubmissionReferenceService.random()).thenReturn("submissionReference1").thenReturn("submissionReference2")
+      when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
+      when(mockUuidService.random()).thenReturn("correlationId")
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
-      service.submit(request, pdf, "test-service")(hc).futureValue mustEqual "submissionReference1"
+      service.submit(request, pdf, "test-service")(hc).futureValue mustEqual "submissionReference"
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("submissionReference2.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("correlationId.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(item)
       verify(mockAuditService).auditSubmitRequest(expectedAudit)(hc)
     }
@@ -151,14 +154,15 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       val submissionReference = "id"
       val requestWithSubmissionReference = request.copy(submissionReference = Some(submissionReference))
 
-      when(mockSubmissionReferenceService.random()).thenReturn("submissionReference2")
+      when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
+      when(mockUuidService.random()).thenReturn("correlationId")
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
       service.submit(requestWithSubmissionReference, pdf, "test-service")(hc).futureValue mustEqual submissionReference
 
-      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("submissionReference2.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
+      verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("correlationId.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(item.copy(id = submissionReference))
       verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = submissionReference))(hc)
     }

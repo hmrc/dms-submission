@@ -39,13 +39,14 @@ class SubmissionService @Inject() (
                                     auditService: AuditService,
                                     submissionItemRepository: SubmissionItemRepository,
                                     clock: Clock,
-                                    submissionReferenceService: SubmissionReferenceService
+                                    submissionReferenceService: SubmissionReferenceService,
+                                    uuidService: UuidService
                                   )(implicit ec: ExecutionContext) extends Logging {
 
   def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.submissionReference.getOrElse(submissionReferenceService.random())
-      val correlationId = submissionReferenceService.random()
+      val correlationId = uuidService.random()
       val path = Path.Directory(s"sdes/$owner").file(s"$correlationId.zip")
       for {
         zip           <- zipService.createZip(workDir, pdf, request.metadata, id)
