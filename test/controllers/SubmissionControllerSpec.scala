@@ -89,7 +89,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
       when(mockSubmissionService.submit(any(), any(), any())(any()))
-        .thenReturn(Future.successful("submissionReference"))
+        .thenReturn(Future.successful(Right("submissionReference")))
 
       val tempFile = SingletonTemporaryFileCreator.create()
       val betterTempFile = File(tempFile.toPath)

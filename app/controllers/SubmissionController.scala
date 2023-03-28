@@ -66,7 +66,7 @@ class SubmissionController @Inject() (
         EitherT.fromEither[Future](getSubmissionRequest(request.body)),
         getPdf(request.body)
         ).parTupled.flatMap { case (submissionRequest, file) =>
-        EitherT.liftF(submissionService.submit(submissionRequest, file, request.retrieval.value))
+        EitherT(submissionService.submit(submissionRequest, file, request.retrieval.value))
       }
       result.fold(
         errors => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
