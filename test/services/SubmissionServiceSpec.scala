@@ -20,6 +20,7 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import audit.{AuditService, SubmitRequestEvent}
 import better.files.File
+import cats.data.NonEmptyChain
 import models.submission._
 import models.{Done, Pdf}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
@@ -167,14 +168,19 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = submissionReference))(hc)
     }
 
-    "must fail when the fail service fails to create a zip file" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
+    "must fail when the zip service fails to create a zip file" in {
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
+    }
+
+    "must return known errors from the zip service" in {
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Left(NonEmptyChain.one("some error"))))
+      service.submit(request, pdf, "test-service")(hc).futureValue.left.value.toChain.toList must contain only "some error"
     }
 
     "must fail when object store fails" in {
       when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Right(zip)))
-      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
+      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
