@@ -18,7 +18,7 @@ package services
 
 import better.files.File
 import models.Pdf
-import models.submission.SubmissionMetadata
+import models.submission.{SubmissionMetadata, SubmissionRequest}
 import org.scalatest.EitherValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -71,11 +71,17 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
         classificationType = "classificationType",
         businessArea = "businessArea"
       )
+      val request = SubmissionRequest(
+        submissionReference = None,
+        callbackUrl = "http://www.example.com",
+        metadata = metadata,
+        attachments = Seq.empty
+      )
       val workDir = File.newTemporaryDirectory().deleteOnExit()
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue.value
+      val zip = service.createZip(workDir, pdf, request, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
