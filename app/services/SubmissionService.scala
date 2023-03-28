@@ -52,7 +52,7 @@ class SubmissionService @Inject() (
       val correlationId = uuidService.random()
       val path = Path.Directory(s"sdes/$owner").file(s"$correlationId.zip")
       val result: EitherT[Future, NonEmptyChain[String], String] = for {
-        zip           <- EitherT.liftF[Future, NonEmptyChain[String], File](zipService.createZip(workDir, pdf, request.metadata, id))
+        zip           <- EitherT(zipService.createZip(workDir, pdf, request.metadata, id))
         objectSummary <- EitherT.liftF(objectStoreClient.putObject(path, zip.path.toFile))
         item          =  createSubmissionItem(request, objectSummary, id, owner, correlationId)
         _             <- EitherT.liftF(auditRequest(request, item))

@@ -19,6 +19,7 @@ package services
 import better.files.File
 import models.Pdf
 import models.submission.SubmissionMetadata
+import org.scalatest.EitherValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -29,7 +30,7 @@ import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.io.Source
 import scala.xml.{Utility, XML}
 
-class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience {
+class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with EitherValues {
 
   private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 12, 30, 45, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
 
@@ -74,7 +75,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue
+      val zip = service.createZip(workDir, pdf, metadata, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)

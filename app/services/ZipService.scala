@@ -17,8 +17,9 @@
 package services
 
 import better.files.File
+import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import config.FileSystemExecutionContext
-import models.Pdf
+import models.{Done, Pdf}
 import models.submission.SubmissionMetadata
 import play.api.Configuration
 
@@ -42,13 +43,34 @@ class ZipService @Inject() (
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
-    val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    val reconciliationId = s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
-    val filenamePrefix = s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[EitherNec[String, File]] = {
+    val result: EitherT[Future, NonEmptyChain[String], File] = for {
+      tmpDir           <- EitherT.liftF(createTmpDir(workDir))
+      reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+      filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+      _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
+      _                <- EitherT.liftF(createMetadatXmlFile(tmpDir, pdf, metadata, id, reconciliationId, filenamePrefix))
+      zip              <- EitherT.liftF(createZip(workDir, tmpDir))
+    } yield zip
+    result.value
+  }
+
+  private def createTmpDir(workDir: File): Future[File] = Future {
+    File.newTemporaryDirectory(parent = Some(workDir))
+  }
+
+  private def copyPdfToZipDir(tmpDir: File, pdf: Pdf, filenamePrefix: String): Future[Done] = Future {
     pdf.file.copyTo(tmpDir / s"$filenamePrefix-iform.pdf")
+    Done
+  }
+
+  private def createMetadatXmlFile(tmpDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String, reconciliationId: String, filenamePrefix: String): Future[Done] = Future {
     val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
     XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
+    Done
+  }
+
+  private def createZip(workDir: File, tmpDir: File): Future[File] = Future {
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }

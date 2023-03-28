@@ -139,7 +139,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
       when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
       when(mockUuidService.random()).thenReturn("correlationId")
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -156,7 +156,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
       when(mockUuidService.random()).thenReturn("correlationId")
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
@@ -173,13 +173,13 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     }
 
     "must fail when object store fails" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
     "must fail when the call to mongo fails" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
