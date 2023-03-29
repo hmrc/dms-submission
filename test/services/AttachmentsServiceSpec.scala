@@ -76,13 +76,13 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
   private val owner: String = "some-service"
 
   private val attachment = Attachment(
-    location = "/some/file.pdf",
+    location = "some/file.pdf",
     contentMd5 = contentMd5,
     owner = owner
   )
 
   private val retrievedObject = Object(
-    location = Path.File("/some/file.pdf"),
+    location = Path.File("some/file.pdf"),
     content = Source.single(ByteString(bytes)),
     metadata = ObjectMetadata(
       contentType = "application/pdf",
@@ -123,7 +123,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
 
       val errors = service.downloadAttachments(workDir, Seq(attachment)).futureValue.left.value
 
-      errors.toChain.toList must contain only "/some/file.pdf: not found"
+      errors.toChain.toList must contain only "some/file.pdf: not found"
     }
 
     "must return an error if the file doesn't match the checksum" in {
@@ -138,7 +138,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
 
       val errors = service.downloadAttachments(workDir, Seq(attachmentWithBadMd5)).futureValue.left.value
 
-      errors.toChain.toList must contain only s"/some/file.pdf: digest does not match"
+      errors.toChain.toList must contain only s"some/file.pdf: digest does not match"
     }
 
     "must return an error if the reported content length of the file is greater than 5mb" in {
@@ -153,7 +153,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
 
       val errors = service.downloadAttachments(workDir, Seq(attachment)).futureValue.left.value
 
-      errors.toChain.toList must contain only s"/some/file.pdf: must be less than 5mb, size from object-store: 5000001b"
+      errors.toChain.toList must contain only s"some/file.pdf: must be less than 5mb, size from object-store: 5000001b"
     }
 
     "must return an error if the file is not a PDF or JPG" in {
@@ -168,7 +168,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
 
       val errors = service.downloadAttachments(workDir, Seq(attachment)).futureValue.left.value
 
-      errors.toChain.toList must contain only s"/some/file.pdf: must be either a PDF or JPG, content type from object-store: text/plain"
+      errors.toChain.toList must contain only s"some/file.pdf: must be either a PDF or JPG, content type from object-store: text/plain"
     }
 
     "must return errors from all files" in {
@@ -176,8 +176,8 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       val workDir = File.newTemporaryDirectory()
         .deleteOnExit()
 
-      val nonPdfOrJpgAttachment = attachment.copy(location = "/some/text.txt")
-      val nonPdfOrJpgFile = retrievedObject.copy(metadata = retrievedObject.metadata.copy(contentType = "text/plain"))
+      val nonPdfOrJpgAttachment = attachment.copy(location = "some/text.txt")
+      val nonPdfOrJpgFile = retrievedObject.copy(location = Path.File("some/text.txt"), metadata = retrievedObject.metadata.copy(contentType = "text/plain"))
 
       val largeRetrievedObjectAttachment = attachment.copy()
       val largeRetrievedObject = retrievedObject.copy(metadata = retrievedObject.metadata.copy(contentLength = 5000001L))
@@ -191,8 +191,8 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       val errors = service.downloadAttachments(workDir, Seq(nonPdfOrJpgAttachment, largeRetrievedObjectAttachment)).futureValue.left.value
 
       errors.toChain.toList must contain allElementsOf Seq(
-        "/some/text.txt: must be either a PDF or JPG, content type from object-store: text/plain",
-        "/some/file.pdf: must be less than 5mb, size from object-store: 5000001b"
+        "some/text.txt: must be either a PDF or JPG, content type from object-store: text/plain",
+        "some/file.pdf: must be less than 5mb, size from object-store: 5000001b"
       )
     }
 
@@ -201,8 +201,8 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       val workDir = File.newTemporaryDirectory()
         .deleteOnExit()
 
-      val attachment2 = attachment.copy(location = "/some/text.txt")
-      val attachment3 = attachment.copy(location = "/text.txt")
+      val attachment2 = attachment.copy(location = "some/text.txt")
+      val attachment3 = attachment.copy(location = "text.txt")
 
       val errors = service.downloadAttachments(workDir, Seq(attachment, attachment, attachment2, attachment3)).futureValue.left.value
 
@@ -221,7 +221,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
 
       val errors = service.downloadAttachments(workDir, Seq(attachment)).futureValue.left.value
 
-      errors.toChain.toList must contain only "/some/file.pdf: unauthorised response from object-store"
+      errors.toChain.toList must contain only "some/file.pdf: unauthorised response from object-store"
     }
 
     "must fail when any calls to object-store fail" in {

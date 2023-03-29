@@ -16,8 +16,10 @@
 
 package services
 
+import akka.NotUsed
 import akka.stream.Materializer
-import akka.stream.scaladsl.{FileIO, Keep}
+import akka.stream.scaladsl.{FileIO, Keep, Source}
+import akka.util.ByteString
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
@@ -61,28 +63,46 @@ class AttachmentsService @Inject() (
   }
 
   private def downloadAttachment(workDir: File, attachment: Attachment)(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] = {
-    objectStoreClient.getObject(Path.File(attachment.location), attachment.owner).flatMap {
-      _.map { o =>
-        if (o.metadata.contentLength > sizeLimit) {
-          Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: must be less than 5mb, size from object-store: ${o.metadata.contentLength}b")))
-        } else if (!acceptedContentTypes.contains(o.metadata.contentType)) {
-          Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: must be either a PDF or JPG, content type from object-store: ${o.metadata.contentType}")))
-        } else {
-          val file = workDir / o.location.fileName
-          o.content.toMat(FileIO.toPath(file.path))(Keep.right).run().map { _ =>
-            if (fileDigest(file) != attachment.contentMd5) {
-              Left(NonEmptyChain.one(s"${attachment.location}: digest does not match"))
-            } else {
-              Right(Done)
-            }
-          }
-        }
-      }.getOrElse(Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: not found"))))
-    }.recover {
-      case e: HttpException if e.responseCode == 401 =>
-        Left(NonEmptyChain.one(s"${attachment.location}: unauthorised response from object-store"))
+    for {
+      o    <- getObject(attachment)
+      _    <- checkSize(o)
+      _    <- checkContentType(o)
+      file <- downloadFile(workDir, o)
+      _    <- checkDigest(attachment, file)
+    } yield Done
+  }.value
+
+  private def getObject(attachment: Attachment)(implicit hc: HeaderCarrier): EitherT[Future, NonEmptyChain[String], OsObject] =
+    EitherT {
+      objectStoreClient.getObject[Source[ByteString, NotUsed]](Path.File(attachment.location), attachment.owner).map { a =>
+        a.map(_.rightNec[String])
+          .getOrElse(s"${attachment.location}: not found".leftNec[OsObject])
+      }.recover {
+        case e: HttpException if e.responseCode == 401 =>
+          s"${attachment.location}: unauthorised response from object-store".leftNec
+      }
     }
+
+  private def downloadFile(workDir: File, o: OsObject): EitherT[Future, NonEmptyChain[String], File] = {
+    val file = workDir / o.location.fileName
+    EitherT.liftF(o.content.toMat(FileIO.toPath(file.path))(Keep.right).run())
+      .map(_ => file)
   }
+
+  private def checkSize(o: OsObject): EitherT[Future, NonEmptyChain[String], Done] =
+    if (o.metadata.contentLength > sizeLimit) {
+      EitherT.leftT(NonEmptyChain.one(s"${o.location.asUri}: must be less than 5mb, size from object-store: ${o.metadata.contentLength}b"))
+    } else EitherT.pure(Done)
+
+  private def checkContentType(o: OsObject): EitherT[Future, NonEmptyChain[String], Done] =
+    if (!acceptedContentTypes.contains(o.metadata.contentType)) {
+      EitherT.leftT(NonEmptyChain.one(s"${o.location.asUri}: must be either a PDF or JPG, content type from object-store: ${o.metadata.contentType}"))
+    } else EitherT.pure(Done)
+
+  private def checkDigest(attachment: Attachment, file: File): EitherT[Future, NonEmptyChain[String], Done] =
+    if (fileDigest(file) != attachment.contentMd5) {
+      EitherT.leftT(NonEmptyChain.one(s"${attachment.location}: digest does not match"))
+    } else EitherT.pure(Done)
 
   private def fileDigest(file: File): String =
     encoder.encodeToString(digestAlg.digest(file.byteArray))
