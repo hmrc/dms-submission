@@ -17,7 +17,6 @@
 package services
 
 import audit.{AuditService, SubmitRequestEvent}
-import better.files.File
 import cats.data.{EitherT, NonEmptyChain}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import models.{Done, Pdf}
@@ -29,7 +28,6 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 
 import java.time.Clock
-import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 

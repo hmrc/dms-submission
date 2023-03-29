@@ -16,4 +16,11 @@
 
 package models.submission
 
+import play.api.libs.json.{Json, OFormat}
+
 final case class Attachment(location: String, contentMd5: String, owner: String)
+
+object Attachment {
+
+  implicit lazy val format: OFormat[Attachment] = Json.format
+}

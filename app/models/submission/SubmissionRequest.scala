@@ -22,7 +22,7 @@ final case class SubmissionRequest(
                                     submissionReference: Option[String],
                                     callbackUrl: String,
                                     metadata: SubmissionMetadata,
-                                    attachments: Seq[ObjectSummary]
+                                    attachments: Seq[Attachment]
                                   )
 
 object SubmissionRequest {

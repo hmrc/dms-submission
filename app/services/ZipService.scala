@@ -22,6 +22,7 @@ import config.FileSystemExecutionContext
 import models.{Done, Pdf}
 import models.submission.{SubmissionMetadata, SubmissionRequest}
 import play.api.Configuration
+import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, LocalDateTime, ZoneOffset}
@@ -31,6 +32,7 @@ import scala.xml.{Node, Utility, XML}
 
 @Singleton
 class ZipService @Inject() (
+                             attachmentsService: AttachmentsService,
                              clock: Clock,
                              configuration: Configuration
                            )(implicit ec: FileSystemExecutionContext) {
@@ -48,8 +50,9 @@ class ZipService @Inject() (
       tmpDir           <- EitherT.liftF(createTmpDir(workDir))
       reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
+      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments)(HeaderCarrier())) // TODO pass header carrier as parameter
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
-      _                <- EitherT.liftF(createMetadatXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix))
+      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
     } yield zip
     result.value
@@ -64,7 +67,7 @@ class ZipService @Inject() (
     Done
   }
 
-  private def createMetadatXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String): Future[Done] = Future {
+  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String): Future[Done] = Future {
     val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
     XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
     Done
@@ -100,7 +103,7 @@ class ZipService @Inject() (
           createAttribute("cas_key", "string", request.metadata.casKey),
           createAttribute("classification_type", "string", request.metadata.classificationType),
           createAttribute("business_area", "string", request.metadata.businessArea),
-          createAttribute("attachment_count", "int", "0")
+          createAttribute("attachment_count", "int", request.attachments.size.toString)
         ) }
         </metadata>
       </document>
