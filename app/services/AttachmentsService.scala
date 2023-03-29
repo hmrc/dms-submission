@@ -1,0 +1,89 @@
+/*
+ * Copyright 2023 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package services
+
+import akka.stream.Materializer
+import akka.stream.scaladsl.{FileIO, Keep}
+import better.files.File
+import cats.data.{EitherNec, EitherT, NonEmptyChain}
+import cats.implicits._
+import models.Done
+import models.submission.Attachment
+import uk.gov.hmrc.http.{HeaderCarrier, HttpException}
+import uk.gov.hmrc.objectstore.client.Path
+import uk.gov.hmrc.objectstore.client.play.Implicits._
+import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+
+import java.security.MessageDigest
+import java.util.Base64
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
+
+@Singleton
+class AttachmentsService @Inject() (
+                                     objectStoreClient: PlayObjectStoreClient
+                                   )(implicit ec: ExecutionContext, mat: Materializer) {
+
+  private val digestAlg: MessageDigest = MessageDigest.getInstance("MD5")
+  private val encoder: Base64.Encoder = Base64.getEncoder
+
+  private val sizeLimit: Long = 5000000L
+  private val acceptedContentTypes: Set[String] = Set("application/pdf", "image/jpeg")
+
+  def downloadAttachments(workDir: File, attachments: Seq[Attachment])(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] = {
+
+    val files = attachments.map(attachment => Path.File(attachment.location).fileName)
+    val duplicateFiles = files.flatMap { file =>
+      if (files.count(_ == file) > 1) Some(file) else None
+    }.toSet
+
+    if (duplicateFiles.nonEmpty) {
+      Future.successful(Left(NonEmptyChain.one(s"duplicate file names: ${duplicateFiles.mkString(", ")}")))
+    } else {
+      attachments.parTraverse { attachment =>
+        EitherT(downloadAttachment(workDir, attachment))
+      }.as(Done).value
+    }
+  }
+
+  private def downloadAttachment(workDir: File, attachment: Attachment)(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] = {
+    objectStoreClient.getObject(Path.File(attachment.location), attachment.owner).flatMap {
+      _.map { o =>
+        if (o.metadata.contentLength > sizeLimit) {
+          Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: must be less than 5mb, size from object-store: ${o.metadata.contentLength}b")))
+        } else if (!acceptedContentTypes.contains(o.metadata.contentType)) {
+          Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: must be either a PDF or JPG, content type from object-store: ${o.metadata.contentType}")))
+        } else {
+          val file = workDir / o.location.fileName
+          o.content.toMat(FileIO.toPath(file.path))(Keep.right).run().map { _ =>
+            if (fileDigest(file) != attachment.contentMd5) {
+              Left(NonEmptyChain.one(s"${attachment.location}: digest does not match"))
+            } else {
+              Right(Done)
+            }
+          }
+        }
+      }.getOrElse(Future.successful(Left(NonEmptyChain.one(s"${attachment.location}: not found"))))
+    }.recover {
+      case e: HttpException if e.responseCode == 401 =>
+        Left(NonEmptyChain.one(s"${attachment.location}: unauthorised response from object-store"))
+    }
+  }
+
+  private def fileDigest(file: File): String =
+    encoder.encodeToString(digestAlg.digest(file.byteArray))
+}
