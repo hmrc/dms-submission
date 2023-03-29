@@ -29,6 +29,7 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
+import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
@@ -91,6 +92,8 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     )
   )
 
+  private val hc: HeaderCarrier = HeaderCarrier()
+
   "createZip" - {
 
     "must create a zip with the right contents in the work dir" in {
@@ -102,7 +105,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      val zip = service.createZip(workDir, pdf, request, correlationId).futureValue.value
+      val zip = service.createZip(workDir, pdf, request, correlationId)(hc).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -115,7 +118,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(any())
+      verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))
     }
 
     "must return errors if the attachments service returns errors" in {
@@ -127,7 +130,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      val errors = service.createZip(workDir, pdf, request, correlationId).futureValue.left.value.toChain.toList
+      val errors = service.createZip(workDir, pdf, request, correlationId)(hc).futureValue.left.value.toChain.toList
       errors must contain only ("some error")
     }
 
@@ -140,7 +143,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      service.createZip(workDir, pdf, request, correlationId).failed.futureValue
+      service.createZip(workDir, pdf, request, correlationId)(hc).failed.futureValue
     }
   }
 }

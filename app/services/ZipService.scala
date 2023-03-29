@@ -45,12 +45,12 @@ class ZipService @Inject() (
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String): Future[EitherNec[String, File]] = {
+  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String)(implicit hc: HeaderCarrier): Future[EitherNec[String, File]] = {
     val result: EitherT[Future, NonEmptyChain[String], File] = for {
       tmpDir           <- EitherT.liftF(createTmpDir(workDir))
       reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
-      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments)(HeaderCarrier())) // TODO pass header carrier as parameter
+      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments))
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
       _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
