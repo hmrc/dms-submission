@@ -63,7 +63,7 @@ class SubmissionController @Inject() (
   def submit = authorised.compose(Action(parse.multipartFormData(false))).async { implicit request =>
     withTimer {
       val result: EitherT[Future, NonEmptyChain[String], String] = (
-        EitherT.fromEither[Future](getSubmissionRequest(request.body)),
+        EitherT.fromEither[Future](getSubmissionRequest(request.retrieval.value, request.body)),
         getPdf(request.body)
         ).parTupled.flatMap { case (submissionRequest, file) =>
         EitherT(submissionService.submit(submissionRequest, file, request.retrieval.value))
@@ -75,8 +75,8 @@ class SubmissionController @Inject() (
     }
   }
 
-  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
-    submissionFormProvider.form("").bindFromRequest(formData.dataParts).fold( // TODO pass owner
+  private def getSubmissionRequest(owner: String, formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
+    submissionFormProvider.form(owner).bindFromRequest(formData.dataParts).fold(
       formWithErrors => Left(NonEmptyChain.fromSeq(formWithErrors.errors.map(error => formatError(error.key, error.format))).get), // always safe
       _.rightNec[String]
     )

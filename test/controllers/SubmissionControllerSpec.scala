@@ -19,7 +19,7 @@ package controllers
 import better.files.File
 import cats.data.NonEmptyChain
 import models.Pdf
-import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
+import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
@@ -111,8 +111,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
-              "metadata.businessArea" -> Seq("businessArea")
-              ),
+              "metadata.businessArea" -> Seq("businessArea"),
+              "attachments[0].location" -> Seq("file.pdf"),
+              "attachments[0].contentMd5" -> Seq("lpSKrT/K6AwIo1ybWVjNiQ==")
+            ),
             files = Seq(
               MultipartFormData.FilePart(
                 key = "form",
@@ -138,7 +140,18 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         businessArea = "businessArea"
       )
 
-      val expectedRequest = SubmissionRequest(None, "http://localhost/callback", expectedMetadata, Seq.empty)
+      val expectedRequest = SubmissionRequest(
+        submissionReference = None,
+        callbackUrl = "http://localhost/callback",
+        metadata = expectedMetadata,
+        attachments = Seq(
+          Attachment(
+            location = "file.pdf",
+            contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
+            owner = "test-service"
+          )
+        )
+      )
 
       val result = route(app, request).value
 
