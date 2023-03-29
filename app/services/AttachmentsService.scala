@@ -25,7 +25,7 @@ import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
 import models.Done
 import models.submission.Attachment
-import uk.gov.hmrc.http.{HeaderCarrier, HttpException}
+import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
@@ -78,7 +78,7 @@ class AttachmentsService @Inject() (
         a.map(_.rightNec[String])
           .getOrElse(s"${attachment.location}: not found".leftNec[OsObject])
       }.recover {
-        case e: HttpException if e.responseCode == 401 =>
+        case e: UpstreamErrorResponse if e.statusCode == 403 =>
           s"${attachment.location}: unauthorised response from object-store".leftNec
       }
     }

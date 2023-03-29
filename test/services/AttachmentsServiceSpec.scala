@@ -30,9 +30,10 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatest.{BeforeAndAfterEach, EitherValues, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Application
+import play.api.http.Status.FORBIDDEN
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
-import uk.gov.hmrc.http.{HeaderCarrier, UnauthorizedException}
+import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
@@ -217,7 +218,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
         .deleteOnExit()
 
       when(mockObjectStoreClient.getObject[Source[ByteString, NotUsed]](any(), any())(any(), any()))
-        .thenReturn(Future.failed(new UnauthorizedException("")))
+        .thenReturn(Future.failed(UpstreamErrorResponse("error", FORBIDDEN)))
 
       val errors = service.downloadAttachments(workDir, Seq(attachment)).futureValue.left.value
 
