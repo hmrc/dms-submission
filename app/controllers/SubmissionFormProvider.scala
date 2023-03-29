@@ -16,48 +16,68 @@
 
 package controllers
 
-import models.submission.{SubmissionMetadata, SubmissionRequest}
+import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest}
+import cats.implicits._
 import play.api.Configuration
-import play.api.data.Form
+import play.api.data.{Form, Mapping}
 import play.api.data.Forms._
 import play.api.data.validation.{Constraint, Invalid, Valid}
 
 import java.net.URL
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
+import java.util.Base64
 import javax.inject.{Inject, Singleton}
 import scala.util.{Failure, Success, Try}
 
 @Singleton
 class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
+  private val base64Decoder: Base64.Decoder = Base64.getDecoder
+
   private val allowLocalhostCallbacks: Boolean =
     configuration.get[Boolean]("allow-localhost-callbacks")
 
-  val form: Form[SubmissionRequest] = Form(
+  def form(owner: String): Form[SubmissionRequest] = Form(
     mapping(
       "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
-      "callbackUrl" -> text
-        .verifying(validateUrl),
-      "metadata" -> mapping(
-        "store" -> text
-          .verifying("error.invalid", _.toBooleanOption.isDefined)
-          .transform(_.toBoolean, (_: Boolean).toString),
-        "source" -> text,
-        "timeOfReceipt" -> text
-          .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
-          .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
-        "formId" -> text,
-        "customerId" -> text,
-        "submissionMark" -> text,
-        "casKey" -> text,
-        "classificationType" -> text,
-        "businessArea" -> text,
-      )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
-    )(SubmissionRequest(_, _, _, Seq.empty))(request => Some((request.submissionReference, request.callbackUrl, request.metadata)))
+      "callbackUrl" -> text.verifying(validateUrl),
+      "metadata" -> metadata,
+      "attachments" -> seq(attachment(owner))
+    )(SubmissionRequest.apply)(SubmissionRequest.unapply)
   )
 
-  private def validateUrl: Constraint[String] =
+  private def attachment(owner: String): Mapping[Attachment] = mapping(
+    "location" -> text.verifying(nonEmptyString),
+    "contentMd5" -> text.verifying(validateContentMd5),
+    "owner" -> optional(text).transform[String](_.getOrElse(owner), _.some)
+  )(Attachment.apply)(Attachment.unapply)
+
+  private def metadata: Mapping[SubmissionMetadata] = mapping(
+    "store" -> text
+      .verifying("error.invalid", _.toBooleanOption.isDefined)
+      .transform(_.toBoolean, (_: Boolean).toString),
+    "source" -> text,
+    "timeOfReceipt" -> text
+      .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
+      .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
+    "formId" -> text.verifying(nonEmptyString),
+    "customerId" -> text.verifying(nonEmptyString),
+    "submissionMark" -> text,
+    "casKey" -> text,
+    "classificationType" -> text,
+    "businessArea" -> text.verifying(nonEmptyString),
+  )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
+
+  private val validateContentMd5: Constraint[String] =
+    Constraint { string =>
+      Try(base64Decoder.decode(string)) match {
+        case Success(bytes) if bytes.length == 16 => Valid
+        case _                                    => Invalid("attachments.contentMd5.invalid")
+      }
+    }
+
+  private val validateUrl: Constraint[String] =
     Constraint { string =>
       Try(new URL(string)) match {
         case Success(url) =>
@@ -75,12 +95,17 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
   private def parseDateTime(string: String): LocalDateTime =
     LocalDateTime.parse(string, DateTimeFormatter.ISO_DATE_TIME)
 
-  private def validateSubmissionReference: Constraint[String] =
+  private val validateSubmissionReference: Constraint[String] =
     Constraint { string =>
       if (string.matches("""^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$""")) {
         Valid
       } else {
         Invalid("submissionReference.invalid")
       }
+    }
+
+  private val nonEmptyString: Constraint[String] =
+    Constraint { string =>
+      if (string.trim.isEmpty) Invalid("error.required") else Valid
     }
 }
