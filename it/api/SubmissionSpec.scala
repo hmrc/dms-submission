@@ -41,8 +41,12 @@ import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
 import repositories.SubmissionItemRepository
 import services.{SubmissionReferenceService, UuidService}
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+import uk.gov.hmrc.objectstore.client.Path
+import uk.gov.hmrc.objectstore.client.play.Implicits._
+import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import util.WireMockHelper
 
 import java.net.URLEncoder
@@ -50,8 +54,10 @@ import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import scala.concurrent.ExecutionContext.Implicits.global
 
-class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
+class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepositorySupport[SubmissionItem] with ScalaFutures
+  with IntegrationPatience with WireMockHelper with GuiceOneServerPerSuite with MockitoSugar {
 
   private val mockSubmissionReferenceService = mock[SubmissionReferenceService]
   private val mockUuidService = mock[UuidService]
@@ -64,6 +70,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
 
   override lazy val repository: SubmissionItemRepository =
     app.injector.instanceOf[SubmissionItemRepository]
+
+  private lazy val objectStoreClient: PlayObjectStoreClient =
+    app.injector.instanceOf[PlayObjectStoreClient]
 
   override def fakeApplication(): Application = GuiceApplicationBuilder()
     .overrides(
@@ -103,6 +112,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
 
     val submissionReference = "0000-0000-0001"
     val sdesCorrelationId = UUID.randomUUID().toString
+    implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
 
     when(mockSubmissionReferenceService.random())
       .thenReturn(submissionReference)
@@ -114,6 +124,16 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
       post(urlMatching("/callback"))
         .willReturn(aResponse().withStatus(OK))
     )
+
+    val attachmentSource: Source[ByteString, _] =
+      Source.single(pdfBytes)
+
+    val attachmentObject = objectStoreClient.putObject(
+      path = Path.File("attachment.pdf"),
+      content = attachmentSource,
+      contentType = Some("application/pdf"),
+      owner = "test"
+    ).futureValue
 
     val timeOfReceipt = LocalDateTime.now()
 
@@ -131,6 +151,8 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
           DataPart("metadata.casKey", "casKey"),
           DataPart("metadata.classificationType", "classificationType"),
           DataPart("metadata.businessArea", "businessArea"),
+          DataPart("attachments[0].location", "attachment.pdf"),
+          DataPart("attachments[0].contentMd5", attachmentObject.contentMd5.value),
           FilePart(
             key = "form",
             filename = "form.pdf",
@@ -169,7 +191,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
         .willReturn(aResponse().withStatus(OK))
     )
 
-    configureFailedCallback(s"${sdesCorrelationId}.zip")
+    configureFailedCallback(s"$sdesCorrelationId.zip")
 
     val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
       .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
@@ -218,6 +240,11 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
               "resourceType" -> "object-store",
               "resourceLocation" -> "dms-submission",
               "actions" -> List("READ", "WRITE", "DELETE")
+            ),
+            Json.obj(
+              "resourceType" -> "object-store",
+              "resourceLocation" -> "test",
+              "actions" -> List("READ", "WRITE")
             )
           )
         )
