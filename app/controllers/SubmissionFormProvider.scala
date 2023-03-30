@@ -43,7 +43,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
       "callbackUrl" -> text.verifying(validateUrl),
       "metadata" -> metadata,
-      "attachments" -> seq(attachment(owner))
+      "attachments" -> seq(attachment(owner)).verifying(attachmentsConstraint)
     )(SubmissionRequest.apply)(SubmissionRequest.unapply)
   )
 
@@ -89,6 +89,15 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
             Invalid("callbackUrl.invalidHost")
           }
         case Failure(_) => Invalid("callbackUrl.invalid")
+      }
+    }
+
+  private val attachmentsConstraint: Constraint[Seq[_]] =
+    Constraint { attachments =>
+      if (attachments.length > 5) {
+        Invalid("attachments.max")
+      } else {
+        Valid
       }
     }
 

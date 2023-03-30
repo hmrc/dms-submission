@@ -197,6 +197,23 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
     behave like requiredField("attachments[0].contentMd5")
   }
 
+  "attachments" - {
+
+    "must fail if there are more than 5 attachments" in {
+
+      val data = (0 to 5).foldLeft(Map.empty[String, String]) { (m, i) =>
+        m ++ Map(
+          s"attachments[$i].location" -> s"$i.pdf",
+          s"attachments[$i].contentMd5" -> "OFj2IjCsPJFfMAxmQxLGPw=="
+        )
+      }
+
+      val boundField = form.bind(data)("attachments")
+      boundField.hasErrors mustEqual true
+      boundField.error.value.message mustEqual "attachments.max"
+    }
+  }
+
   private def requiredField(key: String)(implicit pos: Position): Unit = {
     "must fail if it isn't provided" in {
       val boundField = form.bind(completeData - key)(key)
