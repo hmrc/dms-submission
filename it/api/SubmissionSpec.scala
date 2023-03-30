@@ -78,14 +78,15 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
     .overrides(
       bind[MongoComponent].toInstance(mongoComponent),
       bind[SubmissionReferenceService].toInstance(mockSubmissionReferenceService),
-      bind[UuidService].toInstance(mockUuidService)
+      bind[UuidService].toInstance(mockUuidService),
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
       "workers.initial-delay" -> "0 seconds",
       "workers.sdes-notification-worker.interval" -> "1 second",
       "workers.processed-item-worker.interval" -> "1 second",
-      "workers.failed-item-worker.interval" -> "1 second"
+      "workers.failed-item-worker.interval" -> "1 second",
+      "create-internal-auth-token-on-start" -> false
     )
     .build()
 
