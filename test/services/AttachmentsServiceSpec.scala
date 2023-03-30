@@ -197,21 +197,6 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       )
     }
 
-    "must return an error if there are duplicate file names" in {
-
-      val workDir = File.newTemporaryDirectory()
-        .deleteOnExit()
-
-      val attachment2 = attachment.copy(location = "some/text.txt")
-      val attachment3 = attachment.copy(location = "text.txt")
-
-      val errors = service.downloadAttachments(workDir, Seq(attachment, attachment, attachment2, attachment3)).futureValue.left.value
-
-      errors.toChain.toList must contain only "duplicate file names: file.pdf, text.txt"
-
-      verify(mockObjectStoreClient, never()).getObject[Source[ByteString, NotUsed]](any(), any())(any(), any())
-    }
-
     "must return an error when any call to object-store is unauthorised" in {
 
       val workDir = File.newTemporaryDirectory()

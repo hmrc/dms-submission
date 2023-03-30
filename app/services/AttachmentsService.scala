@@ -46,21 +46,10 @@ class AttachmentsService @Inject() (
   private val sizeLimit: Long = 5000000L
   private val acceptedContentTypes: Set[String] = Set("application/pdf", "image/jpeg")
 
-  def downloadAttachments(workDir: File, attachments: Seq[Attachment])(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] = {
-
-    val files = attachments.map(attachment => Path.File(attachment.location).fileName)
-    val duplicateFiles = files.flatMap { file =>
-      if (files.count(_ == file) > 1) Some(file) else None
-    }.toSet
-
-    if (duplicateFiles.nonEmpty) {
-      Future.successful(Left(NonEmptyChain.one(s"duplicate file names: ${duplicateFiles.mkString(", ")}")))
-    } else {
-      attachments.parTraverse { attachment =>
-        EitherT(downloadAttachment(workDir, attachment))
-      }.as(Done).value
-    }
-  }
+  def downloadAttachments(workDir: File, attachments: Seq[Attachment])(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] =
+    attachments.parTraverse { attachment =>
+      EitherT(downloadAttachment(workDir, attachment))
+    }.as(Done).value
 
   private def downloadAttachment(workDir: File, attachment: Attachment)(implicit hc: HeaderCarrier): Future[EitherNec[String, Done]] = {
     for {
