@@ -212,6 +212,20 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       boundField.hasErrors mustEqual true
       boundField.error.value.message mustEqual "attachments.max"
     }
+
+    "must fail if there are duplicate file names" in {
+
+      val data = Map(
+        "attachments[0].location" -> "file.pdf",
+        "attachments[0].contentMd5" -> "OFj2IjCsPJFfMAxmQxLGPw==",
+        "attachments[1].location" -> "file.pdf",
+        "attachments[1].contentMd5" -> "OFj2IjCsPJFfMAxmQxLGPw=="
+      )
+
+      val boundField = form.bind(data)("attachments")
+      boundField.hasErrors mustEqual true
+      boundField.error.value.message mustEqual "attachments.duplicateFilenames"
+    }
   }
 
   private def requiredField(key: String)(implicit pos: Position): Unit = {

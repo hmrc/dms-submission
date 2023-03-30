@@ -22,6 +22,7 @@ import play.api.Configuration
 import play.api.data.{Form, Mapping}
 import play.api.data.Forms._
 import play.api.data.validation.{Constraint, Invalid, Valid}
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.net.URL
 import java.time.format.DateTimeFormatter
@@ -92,12 +93,20 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       }
     }
 
-  private val attachmentsConstraint: Constraint[Seq[_]] =
+  private val attachmentsConstraint: Constraint[Seq[Attachment]] =
     Constraint { attachments =>
-      if (attachments.length > 5) {
-        Invalid("attachments.max")
-      } else {
-        Valid
+      if (attachments.length > 5) Invalid("attachments.max") else {
+
+        val files = attachments.map(attachment => Path.File(attachment.location).fileName)
+        val duplicateFiles = files.flatMap { file =>
+          if (files.count(_ == file) > 1) Some(file) else None
+        }.toSet
+
+        if (duplicateFiles.nonEmpty) {
+          Invalid("attachments.duplicateFilenames", duplicateFiles.mkString(", "))
+        } else {
+          Valid
+        }
       }
     }
 
