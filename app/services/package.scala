@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-package models.submission
+import akka.NotUsed
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 
-import play.api.libs.json.{Format, Json}
+package object services {
 
-final case class SubmissionRequest(
-                                    submissionReference: Option[String],
-                                    callbackUrl: String,
-                                    metadata: SubmissionMetadata,
-                                    attachments: Seq[Attachment]
-                                  )
-
-object SubmissionRequest {
-
-  implicit lazy val formats: Format[SubmissionRequest] = Json.format
+  type OsObject = uk.gov.hmrc.objectstore.client.Object[Source[ByteString, NotUsed]]
 }

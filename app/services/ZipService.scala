@@ -17,10 +17,12 @@
 package services
 
 import better.files.File
+import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import config.FileSystemExecutionContext
-import models.Pdf
-import models.submission.SubmissionMetadata
+import models.{Done, Pdf}
+import models.submission.{SubmissionMetadata, SubmissionRequest}
 import play.api.Configuration
+import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, LocalDateTime, ZoneOffset}
@@ -30,6 +32,7 @@ import scala.xml.{Node, Utility, XML}
 
 @Singleton
 class ZipService @Inject() (
+                             attachmentsService: AttachmentsService,
                              clock: Clock,
                              configuration: Configuration
                            )(implicit ec: FileSystemExecutionContext) {
@@ -42,43 +45,65 @@ class ZipService @Inject() (
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  def createZip(workDir: File, pdf: Pdf, metadata: SubmissionMetadata, id: String): Future[File] = Future {
-    val tmpDir = File.newTemporaryDirectory(parent = Some(workDir))
-    val reconciliationId = s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
-    val filenamePrefix = s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))}"
+  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String)(implicit hc: HeaderCarrier): Future[EitherNec[String, File]] = {
+    val result: EitherT[Future, NonEmptyChain[String], File] = for {
+      tmpDir           <- EitherT.liftF(createTmpDir(workDir))
+      reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
+      filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
+      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments))
+      _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
+      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix))
+      zip              <- EitherT.liftF(createZip(workDir, tmpDir))
+    } yield zip
+    result.value
+  }
+
+  private def createTmpDir(workDir: File): Future[File] = Future {
+    File.newTemporaryDirectory(parent = Some(workDir))
+  }
+
+  private def copyPdfToZipDir(tmpDir: File, pdf: Pdf, filenamePrefix: String): Future[Done] = Future {
     pdf.file.copyTo(tmpDir / s"$filenamePrefix-iform.pdf")
+    Done
+  }
+
+  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String): Future[Done] = Future {
     val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(metadata, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
+    Done
+  }
+
+  private def createZip(workDir: File, tmpDir: File): Future[File] = Future {
     val zip = File.newTemporaryFile(parent = Some(workDir))
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(metadata: SubmissionMetadata, numberOfPages: Int, id: String, reconciliationId: String): Node =
+  private def createMetadata(request: SubmissionRequest, numberOfPages: Int, id: String, reconciliationId: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
           <title>{id}</title>
           <format>{format}</format>
           <mime_type>{mimeType}</mime_type>
-          <store>{metadata.store}</store>
-          <source>{metadata.source}</source>
+          <store>{request.metadata.store}</store>
+          <source>{request.metadata.source}</source>
           <target>{target}</target>
           <reconciliation_id>{reconciliationId}</reconciliation_id>
         </header>
         <metadata>
           { Seq(
-          createAttribute("hmrc_time_of_receipt", "time", readableDateFormatter.format(LocalDateTime.ofInstant(metadata.timeOfReceipt, ZoneOffset.UTC))),
+          createAttribute("hmrc_time_of_receipt", "time", readableDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))),
           createAttribute("time_xml_created", "time", readableDateFormatter.format(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))),
           createAttribute("submission_reference", "string", id),
-          createAttribute("form_id", "string", metadata.formId),
+          createAttribute("form_id", "string", request.metadata.formId),
           createAttribute("number_pages", "integer", numberOfPages.toString),
-          createAttribute("source", "string", metadata.source),
-          createAttribute("customer_id", "string", metadata.customerId),
-          createAttribute("submission_mark", "string", metadata.submissionMark),
-          createAttribute("cas_key", "string", metadata.casKey),
-          createAttribute("classification_type", "string", metadata.classificationType),
-          createAttribute("business_area", "string", metadata.businessArea),
-          createAttribute("attachment_count", "int", "0")
+          createAttribute("source", "string", request.metadata.source),
+          createAttribute("customer_id", "string", request.metadata.customerId),
+          createAttribute("submission_mark", "string", request.metadata.submissionMark),
+          createAttribute("cas_key", "string", request.metadata.casKey),
+          createAttribute("classification_type", "string", request.metadata.classificationType),
+          createAttribute("business_area", "string", request.metadata.businessArea),
+          createAttribute("attachment_count", "int", request.attachments.size.toString)
         ) }
         </metadata>
       </document>

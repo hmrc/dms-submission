@@ -17,6 +17,7 @@
 package services
 
 import audit.{AuditService, SubmitRequestEvent}
+import cats.data.{EitherT, NonEmptyChain}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import models.{Done, Pdf}
 import play.api.Logging
@@ -27,7 +28,6 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
 
 import java.time.Clock
-import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -43,18 +43,20 @@ class SubmissionService @Inject() (
                                     uuidService: UuidService
                                   )(implicit ec: ExecutionContext) extends Logging {
 
-  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[String] =
+
+  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.submissionReference.getOrElse(submissionReferenceService.random())
       val correlationId = uuidService.random()
       val path = Path.Directory(s"sdes/$owner").file(s"$correlationId.zip")
-      for {
-        zip           <- zipService.createZip(workDir, pdf, request.metadata, id)
-        objectSummary <- objectStoreClient.putObject(path, zip.path.toFile)
+      val result: EitherT[Future, NonEmptyChain[String], String] = for {
+        zip           <- EitherT(zipService.createZip(workDir, pdf, request, id))
+        objectSummary <- EitherT.liftF(objectStoreClient.putObject(path, zip.path.toFile))
         item          =  createSubmissionItem(request, objectSummary, id, owner, correlationId)
-        _             <- auditRequest(request, item)
-        _             <- submissionItemRepository.insert(item)
+        _             <- EitherT.liftF(auditRequest(request, item))
+        _             <- EitherT.liftF(submissionItemRepository.insert(item))
       } yield item.id
+      result.value
     }
 
   private def createSubmissionItem(request: SubmissionRequest, objectSummary: ObjectSummaryWithMd5, id: String, owner: String, correlationId: String): SubmissionItem =

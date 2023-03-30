@@ -16,16 +16,11 @@
 
 package models.submission
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{Json, OFormat}
 
-final case class SubmissionRequest(
-                                    submissionReference: Option[String],
-                                    callbackUrl: String,
-                                    metadata: SubmissionMetadata,
-                                    attachments: Seq[Attachment]
-                                  )
+final case class Attachment(location: String, contentMd5: String, owner: String)
 
-object SubmissionRequest {
+object Attachment {
 
-  implicit lazy val formats: Format[SubmissionRequest] = Json.format
+  implicit lazy val format: OFormat[Attachment] = Json.format
 }

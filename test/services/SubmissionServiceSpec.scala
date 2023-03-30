@@ -20,6 +20,7 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import audit.{AuditService, SubmitRequestEvent}
 import better.files.File
+import cats.data.NonEmptyChain
 import models.submission._
 import models.{Done, Pdf}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
@@ -28,7 +29,7 @@ import org.mockito.Mockito.{verify, when}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import org.scalatest.{BeforeAndAfterEach, OptionValues}
+import org.scalatest.{BeforeAndAfterEach, EitherValues, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -43,7 +44,7 @@ import scala.concurrent.Future
 
 class SubmissionServiceSpec extends AnyFreeSpec with Matchers
   with ScalaFutures with MockitoSugar with OptionValues with BeforeAndAfterEach
-  with IntegrationPatience {
+  with IntegrationPatience with EitherValues {
 
   private val clock = Clock.fixed(Instant.now, ZoneOffset.UTC)
 
@@ -93,7 +94,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       classificationType = "classificationType",
       businessArea = "businessArea"
     )
-    val request = SubmissionRequest(None, "callbackUrl", metadata)
+    val request = SubmissionRequest(None, "callbackUrl", metadata, Seq.empty)
 
     val pdfFile = File.newTemporaryFile()
       .deleteOnExit()
@@ -139,11 +140,11 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
     "must create a zip file of the contents of the request along with a metadata xml for routing, upload to object-store, store in mongo" in {
       when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
       when(mockUuidService.random()).thenReturn("correlationId")
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request), any())(any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
-      service.submit(request, pdf, "test-service")(hc).futureValue mustEqual "submissionReference"
+      service.submit(request, pdf, "test-service")(hc).futureValue.value mustEqual "submissionReference"
 
       verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("correlationId.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(item)
@@ -156,30 +157,35 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
 
       when(mockSubmissionReferenceService.random()).thenReturn("submissionReference")
       when(mockUuidService.random()).thenReturn("correlationId")
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(requestWithSubmissionReference), any())(any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.successful(Done))
 
-      service.submit(requestWithSubmissionReference, pdf, "test-service")(hc).futureValue mustEqual submissionReference
+      service.submit(requestWithSubmissionReference, pdf, "test-service")(hc).futureValue.value mustEqual submissionReference
 
       verify(mockObjectStoreClient).putObject(eqTo(Path.Directory("sdes/test-service").file("correlationId.zip")), eqTo(zip.path.toFile), any(), any(), any(), any())(any(), any())
       verify(mockSubmissionItemRepository).insert(item.copy(id = submissionReference))
       verify(mockAuditService).auditSubmitRequest(expectedAudit.copy(id = submissionReference))(hc)
     }
 
-    "must fail when the fail service fails to create a zip file" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenThrow(new RuntimeException())
+    "must fail when the zip service fails to create a zip file" in {
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request), any())(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
+    "must return known errors from the zip service" in {
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request), any())(any())).thenReturn(Future.successful(Left(NonEmptyChain.one("some error"))))
+      service.submit(request, pdf, "test-service")(hc).futureValue.left.value.toChain.toList must contain only "some error"
+    }
+
     "must fail when object store fails" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
-      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenThrow(new RuntimeException())
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request), any())(any())).thenReturn(Future.successful(Right(zip)))
+      when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue
     }
 
     "must fail when the call to mongo fails" in {
-      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request.metadata), any())).thenReturn(Future.successful(zip))
+      when(mockZipService.createZip(any(), eqTo(pdf), eqTo(request), any())(any())).thenReturn(Future.successful(Right(zip)))
       when(mockObjectStoreClient.putObject[Source[ByteString, _]](any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(objectSummaryWithMd5))
       when(mockSubmissionItemRepository.insert(any())).thenReturn(Future.failed(new RuntimeException()))
       service.submit(request, pdf, "test-service")(hc).failed.futureValue

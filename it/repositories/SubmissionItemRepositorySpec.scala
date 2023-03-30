@@ -17,8 +17,8 @@
 package repositories
 
 import cats.implicits.toTraverseOps
-import models.{DailySummary, SubmissionSummary}
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.{DailySummary, SubmissionSummary}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -28,7 +28,7 @@ import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, Duration, Instant, LocalDate}
+import java.time.{Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}

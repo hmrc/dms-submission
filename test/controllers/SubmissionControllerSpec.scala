@@ -17,8 +17,9 @@
 package controllers
 
 import better.files.File
+import cats.data.NonEmptyChain
 import models.Pdf
-import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
+import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
@@ -89,7 +90,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
       when(mockSubmissionService.submit(any(), any(), any())(any()))
-        .thenReturn(Future.successful("submissionReference"))
+        .thenReturn(Future.successful(Right("submissionReference")))
 
       val tempFile = SingletonTemporaryFileCreator.create()
       val betterTempFile = File(tempFile.toPath)
@@ -110,8 +111,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
-              "metadata.businessArea" -> Seq("businessArea")
-              ),
+              "metadata.businessArea" -> Seq("businessArea"),
+              "attachments[0].location" -> Seq("file.pdf"),
+              "attachments[0].contentMd5" -> Seq("lpSKrT/K6AwIo1ybWVjNiQ==")
+            ),
             files = Seq(
               MultipartFormData.FilePart(
                 key = "form",
@@ -137,7 +140,18 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         businessArea = "businessArea"
       )
 
-      val expectedRequest = SubmissionRequest(None, "http://localhost/callback", expectedMetadata)
+      val expectedRequest = SubmissionRequest(
+        submissionReference = None,
+        callbackUrl = "http://localhost/callback",
+        metadata = expectedMetadata,
+        attachments = Seq(
+          Attachment(
+            location = "file.pdf",
+            contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
+            owner = "test-service"
+          )
+        )
+      )
 
       val result = route(app, request).value
 
@@ -193,6 +207,55 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         )
 
       route(app, request).value.failed.futureValue
+    }
+
+    "must return BAD_REQUEST when the submission service returns errors" in {
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
+
+      when(mockSubmissionService.submit(any(), any(), any())(any()))
+        .thenReturn(Future.successful(Left(NonEmptyChain.one("some error"))))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      val betterTempFile = File(tempFile.toPath)
+        .deleteOnExit()
+        .writeByteArray(pdfBytes)
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("http://localhost/callback"),
+              "metadata.store" -> Seq("false"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.submissionMark" -> Seq("submissionMark"),
+              "metadata.casKey" -> Seq("casKey"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = betterTempFile.size
+              )
+            ),
+            badParts = Seq.empty
+          )
+        )
+
+      val result = route(app, request).value
+
+      status(result) mustEqual BAD_REQUEST
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain only "some error"
     }
 
     "must return BAD_REQUEST when the user provides an invalid request" in {
