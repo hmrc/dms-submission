@@ -64,7 +64,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
     "formId" -> text.verifying(nonEmptyString),
     "customerId" -> text.verifying(nonEmptyString),
-    "submissionMark" -> text,
+    "submissionMark" -> optional(text),
     "casKey" -> text,
     "classificationType" -> text,
     "businessArea" -> text.verifying(nonEmptyString),

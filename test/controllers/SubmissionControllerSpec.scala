@@ -108,7 +108,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea"),
@@ -134,7 +133,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0).toInstant(ZoneOffset.UTC),
         formId = "formId",
         customerId = "customerId",
-        submissionMark = "submissionMark",
+        submissionMark = None,
         casKey = "casKey",
         classificationType = "classificationType",
         businessArea = "businessArea"
@@ -188,7 +187,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
@@ -233,7 +231,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
@@ -306,7 +303,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
@@ -354,7 +350,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.submissionMark" -> Seq("submissionMark"),
               "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")

@@ -19,8 +19,8 @@ package services
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import config.FileSystemExecutionContext
+import models.submission.SubmissionRequest
 import models.{Done, Pdf}
-import models.submission.{SubmissionMetadata, SubmissionRequest}
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 
@@ -34,7 +34,8 @@ import scala.xml.{Node, Utility, XML}
 class ZipService @Inject() (
                              attachmentsService: AttachmentsService,
                              clock: Clock,
-                             configuration: Configuration
+                             configuration: Configuration,
+                             submissionMarkService: SubmissionMarkService
                            )(implicit ec: FileSystemExecutionContext) {
 
   private val format: String = configuration.get[String]("metadata.format")
@@ -52,11 +53,17 @@ class ZipService @Inject() (
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments))
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
-      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix))
+      submissionMark   <- EitherT.liftF(getSubmissionMark(tmpDir, pdf, request))
+      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix, submissionMark))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
     } yield zip
     result.value
   }
+
+  private def getSubmissionMark(workDir: File, pdf: Pdf, request: SubmissionRequest): Future[String] =
+    request.metadata.submissionMark.map(Future.successful).getOrElse {
+      submissionMarkService.generateSubmissionMark(workDir, pdf.file, request.attachments)
+    }
 
   private def createTmpDir(workDir: File): Future[File] = Future {
     File.newTemporaryDirectory(parent = Some(workDir))
@@ -67,9 +74,9 @@ class ZipService @Inject() (
     Done
   }
 
-  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String): Future[Done] = Future {
+  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String, submissionMark: String): Future[Done] = Future {
     val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, pdf.numberOfPages, id, reconciliationId)), xmlDecl = true)
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, pdf.numberOfPages, id, reconciliationId, submissionMark)), xmlDecl = true)
     Done
   }
 
@@ -78,7 +85,7 @@ class ZipService @Inject() (
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(request: SubmissionRequest, numberOfPages: Int, id: String, reconciliationId: String): Node =
+  private def createMetadata(request: SubmissionRequest, numberOfPages: Int, id: String, reconciliationId: String, submissionMark: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
@@ -99,7 +106,7 @@ class ZipService @Inject() (
           createAttribute("number_pages", "integer", numberOfPages.toString),
           createAttribute("source", "string", request.metadata.source),
           createAttribute("customer_id", "string", request.metadata.customerId),
-          createAttribute("submission_mark", "string", request.metadata.submissionMark),
+          createAttribute("submission_mark", "string", submissionMark),
           createAttribute("cas_key", "string", request.metadata.casKey),
           createAttribute("classification_type", "string", request.metadata.classificationType),
           createAttribute("business_area", "string", request.metadata.businessArea),

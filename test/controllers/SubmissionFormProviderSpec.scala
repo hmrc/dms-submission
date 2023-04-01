@@ -41,7 +41,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       timeOfReceipt = timeOfReceipt.toInstant(ZoneOffset.UTC),
       formId = "formId",
       customerId = "customerId",
-      submissionMark = "submissionMark",
+      submissionMark = Some("submissionMark"),
       casKey = "casKey",
       classificationType = "classificationType",
       businessArea = "businessArea"
@@ -162,10 +162,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   "metadata.customerId" - {
     behave like requiredField("metadata.customerId")
     behave like nonEmptyField("metadata.customerId")
-  }
-
-  "metadata.submissionMark" - {
-    behave like requiredField("metadata.submissionMark")
   }
 
   "metadata.casKey" - {
