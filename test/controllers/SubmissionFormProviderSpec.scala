@@ -32,6 +32,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   private val form = new SubmissionFormProvider(configuration).form("owner")
 
   private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
+
   private val completeRequest = SubmissionRequest(
     submissionReference = Some("1234567890AB"),
     callbackUrl = "http://test-service.protected.mdtp/callback",
@@ -42,7 +43,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       formId = "formId",
       customerId = "customerId",
       submissionMark = Some("submissionMark"),
-      casKey = "casKey",
+      casKey = Some("casKey"),
       classificationType = "classificationType",
       businessArea = "businessArea"
     ),
@@ -57,6 +58,14 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
         contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
         owner = "owner2"
       )
+    )
+  )
+
+  private val minimalRequest = completeRequest.copy(
+    metadata = completeRequest.metadata.copy(
+      store = true,
+      submissionMark = None,
+      casKey = None
     )
   )
 
@@ -79,8 +88,15 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
     "attachments[1].owner" -> "owner2"
   )
 
+  private val minimalData =
+    completeData - "metadata.store" - "metadata.submissionMark" - "metadata.casKey"
+
   "must return a `SubmissionRequest` when given valid input" in {
     form.bind(completeData).value.value mustEqual completeRequest
+  }
+
+  "must return a `SubmissionRequest` when given minimal input" in {
+    form.bind(minimalData).value.value mustEqual minimalRequest
   }
 
   "submissionReference" - {
@@ -125,8 +141,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   }
 
   "metadata.store" - {
-
-    behave like requiredField("metadata.store")
 
     "must fail if it is invalid" in {
       val boundField = form.bind(Map("metadata.store" -> "foobar"))("metadata.store")

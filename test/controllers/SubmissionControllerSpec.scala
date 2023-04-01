@@ -103,12 +103,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("http://localhost/callback"),
-              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea"),
               "attachments[0].location" -> Seq("file.pdf"),
@@ -128,13 +126,13 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         )
 
       val expectedMetadata = SubmissionMetadata(
-        store = false,
+        store = true,
         source = "source",
         timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0).toInstant(ZoneOffset.UTC),
         formId = "formId",
         customerId = "customerId",
         submissionMark = None,
-        casKey = "casKey",
+        casKey = None,
         classificationType = "classificationType",
         businessArea = "businessArea"
       )
@@ -182,12 +180,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("http://localhost/callback"),
-              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
             ),
@@ -226,12 +222,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("http://localhost/callback"),
-              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
             ),
@@ -298,12 +292,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("http://localhost/callback"),
-              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
             ),
@@ -345,12 +337,10 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
           MultipartFormData(
             dataParts = Map(
               "callbackUrl" -> Seq("http://localhost/callback"),
-              "metadata.store" -> Seq("false"),
               "metadata.source" -> Seq("source"),
               "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
-              "metadata.casKey" -> Seq("casKey"),
               "metadata.classificationType" -> Seq("classificationType"),
               "metadata.businessArea" -> Seq("businessArea")
             ),

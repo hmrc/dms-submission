@@ -56,9 +56,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
   )(Attachment.apply)(Attachment.unapply)
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
-    "store" -> text
-      .verifying("error.invalid", _.toBooleanOption.isDefined)
-      .transform(_.toBoolean, (_: Boolean).toString),
+    "store" -> default(boolean, true),
     "source" -> text.verifying(nonEmpty, maxLength(32)),
     "timeOfReceipt" -> text
       .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
@@ -66,7 +64,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
     "formId" -> text.verifying(nonEmpty, maxLength(12)),
     "customerId" -> text.verifying(nonEmpty, maxLength(32)),
     "submissionMark" -> optional(text.verifying(nonEmpty, maxLength(32))),
-    "casKey" -> text.verifying(nonEmpty, maxLength(65)),
+    "casKey" -> optional(text.verifying(nonEmpty, maxLength(65))),
     "classificationType" -> text.verifying(nonEmpty, maxLength(64)),
     "businessArea" -> text.verifying(nonEmpty, maxLength(32))
   )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)

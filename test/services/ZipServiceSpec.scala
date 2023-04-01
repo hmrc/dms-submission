@@ -82,7 +82,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     formId = "formId",
     customerId = "customerId",
     submissionMark = Some("submissionMark"),
-    casKey = "casKey",
+    casKey = Some("casKey"),
     classificationType = "classificationType",
     businessArea = "businessArea"
   )
@@ -130,7 +130,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any(), any())
     }
 
-    "must generate a submission mark if one is not provided" in {
+    "must generate a zip when optional fields are not provided" in {
 
       when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
         .thenReturn(Future.successful(Right(Done)))
@@ -142,9 +142,14 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
 
-      val requestWithoutSubmissionMark = request.copy(metadata = metadata.copy(submissionMark = None))
+      val minimalRequest = request.copy(
+        metadata = metadata.copy(
+          submissionMark = None,
+          casKey = None
+        )
+      )
 
-      val zip = service.createZip(workDir, pdf, requestWithoutSubmissionMark, correlationId)(hc).futureValue.value
+      val zip = service.createZip(workDir, pdf, minimalRequest, correlationId)(hc).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -154,7 +159,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       unzippedPdf.isSameContentAs(pdfFile) mustBe true
 
       val unzippedMetadata = tmpDir / "correlationId-20220201-metadata.xml"
-      val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
+      val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata2.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
       verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))

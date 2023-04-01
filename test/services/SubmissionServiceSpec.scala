@@ -90,7 +90,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       formId = "formId",
       customerId = "customerId",
       submissionMark = None,
-      casKey = "casKey",
+      casKey = None,
       classificationType = "classificationType",
       businessArea = "businessArea"
     )

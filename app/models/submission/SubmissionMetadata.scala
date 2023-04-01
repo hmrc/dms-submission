@@ -27,7 +27,7 @@ final case class SubmissionMetadata(
                                      formId: String,
                                      customerId: String,
                                      submissionMark: Option[String],
-                                     casKey: String,
+                                     casKey: Option[String],
                                      classificationType: String,
                                      businessArea: String
                                    )
