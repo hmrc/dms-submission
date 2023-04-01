@@ -68,6 +68,13 @@
                 </attribute_values>
             </attribute>
             <attribute>
+                <attribute_name>cas_key</attribute_name>
+                <attribute_type>string</attribute_type>
+                <attribute_values>
+                    <attribute_value></attribute_value>
+                </attribute_values>
+            </attribute>
+            <attribute>
                 <attribute_name>classification_type</attribute_name>
                 <attribute_type>string</attribute_type>
                 <attribute_values>

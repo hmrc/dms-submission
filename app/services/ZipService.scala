@@ -107,17 +107,16 @@ class ZipService @Inject() (
           createAttribute("source", "string", request.metadata.source),
           createAttribute("customer_id", "string", request.metadata.customerId),
           createAttribute("submission_mark", "string", submissionMark),
-          createOptionalAttribute("cas_key", "string", request.metadata.casKey),
+          createAttribute("cas_key", "string", request.metadata.casKey.getOrElse("")),
           createAttribute("classification_type", "string", request.metadata.classificationType),
           createAttribute("business_area", "string", request.metadata.businessArea),
           createAttribute("attachment_count", "int", request.attachments.size.toString)
-        ).flatten }
+        ) }
         </metadata>
       </document>
     </documents>
 
-  private def createAttribute(attributeName: String, attributeType: String, attributeValue: String): Option[Node] =
-    Some {
+  private def createAttribute(attributeName: String, attributeType: String, attributeValue: String): Node =
     <attribute>
       <attribute_name>{attributeName}</attribute_name>
       <attribute_type>{attributeType}</attribute_type>
@@ -125,8 +124,4 @@ class ZipService @Inject() (
         <attribute_value>{attributeValue}</attribute_value>
       </attribute_values>
     </attribute>
-  }
-
-  private def createOptionalAttribute(attributeName: String, attributeType: String, attributeValue: Option[String]): Option[Node] =
-    attributeValue.flatMap(createAttribute(attributeName, attributeType, _))
 }
