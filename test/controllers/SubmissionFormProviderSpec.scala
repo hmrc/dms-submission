@@ -136,6 +136,13 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "metadata.source" - {
     behave like requiredField("metadata.source")
+    behave like nonEmptyField("metadata.source")
+    behave like fieldWithMaxLength("metadata.source", 32)
+  }
+
+  "metadata.submissionMark" - {
+    behave like nonEmptyField("metadata.submissionMark")
+    behave like fieldWithMaxLength("metadata.submissionMark", 32)
   }
 
   "metadata.timeOfReceipt" - {
@@ -157,24 +164,30 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   "metadata.formId" - {
     behave like requiredField("metadata.formId")
     behave like nonEmptyField("metadata.formId")
+    behave like fieldWithMaxLength("metadata.formId", 12)
   }
 
   "metadata.customerId" - {
     behave like requiredField("metadata.customerId")
     behave like nonEmptyField("metadata.customerId")
+    behave like fieldWithMaxLength("metadata.customerId", 32)
   }
 
   "metadata.casKey" - {
-    behave like requiredField("metadata.casKey")
+    behave like nonEmptyField("metadata.casKey")
+    behave like fieldWithMaxLength("metadata.casKey", 65)
   }
 
   "metadata.classificationType" - {
     behave like requiredField("metadata.classificationType")
+    behave like nonEmptyField("metadata.businessArea")
+    behave like fieldWithMaxLength("metadata.classificationType", 64)
   }
 
   "metadata.businessArea" - {
     behave like requiredField("metadata.businessArea")
     behave like nonEmptyField("metadata.businessArea")
+    behave like fieldWithMaxLength("metadata.businessArea", 32)
   }
 
   "attachments.location" - {
@@ -234,6 +247,13 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   private def nonEmptyField(key: String)(implicit pos: Position): Unit = {
     "must fail if it's empty" in {
       val boundField = form.bind(completeData - key + (key -> "   "))(key)
+      boundField.hasErrors mustEqual true
+    }
+  }
+
+  private def fieldWithMaxLength(key: String, maxLength: Int)(implicit pos: Position): Unit = {
+    s"must fail if input is longer than $maxLength" in {
+      val boundField = form.bind(completeData - key + (key -> "a" * (maxLength + 1)))(key)
       boundField.hasErrors mustEqual true
     }
   }
