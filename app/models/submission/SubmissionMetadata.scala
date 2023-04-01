@@ -26,8 +26,8 @@ final case class SubmissionMetadata(
                                      timeOfReceipt: Instant,
                                      formId: String,
                                      customerId: String,
-                                     submissionMark: String,
-                                     casKey: String,
+                                     submissionMark: Option[String],
+                                     casKey: Option[String],
                                      classificationType: String,
                                      businessArea: String
                                    )

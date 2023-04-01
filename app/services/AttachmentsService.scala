@@ -26,7 +26,6 @@ import cats.implicits._
 import models.Done
 import models.submission.Attachment
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
-import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.Implicits._
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
@@ -63,12 +62,12 @@ class AttachmentsService @Inject() (
 
   private def getObject(attachment: Attachment)(implicit hc: HeaderCarrier): EitherT[Future, NonEmptyChain[String], OsObject] =
     EitherT {
-      objectStoreClient.getObject[Source[ByteString, NotUsed]](Path.File(attachment.location), attachment.owner).map { a =>
+      objectStoreClient.getObject[Source[ByteString, NotUsed]](attachment.location, attachment.owner).map { a =>
         a.map(_.rightNec[String])
-          .getOrElse(s"${attachment.location}: not found".leftNec[OsObject])
+          .getOrElse(s"${attachment.location.asUri}: not found".leftNec[OsObject])
       }.recover {
         case e: UpstreamErrorResponse if e.statusCode == 403 =>
-          s"${attachment.location}: unauthorised response from object-store".leftNec
+          s"${attachment.location.asUri}: unauthorised response from object-store".leftNec
       }
     }
 
@@ -90,7 +89,7 @@ class AttachmentsService @Inject() (
 
   private def checkDigest(attachment: Attachment, file: File): EitherT[Future, NonEmptyChain[String], Done] =
     if (fileDigest(file) != attachment.contentMd5) {
-      EitherT.leftT(NonEmptyChain.one(s"${attachment.location}: digest does not match"))
+      EitherT.leftT(NonEmptyChain.one(s"${attachment.location.asUri}: digest does not match"))
     } else EitherT.pure(Done)
 
   private def fileDigest(file: File): String =

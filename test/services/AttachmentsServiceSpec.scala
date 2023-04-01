@@ -77,7 +77,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
   private val owner: String = "some-service"
 
   private val attachment = Attachment(
-    location = "some/file.pdf",
+    location = Path.File("some/file.pdf"),
     contentMd5 = contentMd5,
     owner = owner
   )
@@ -111,7 +111,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       (workDir / "file.pdf").exists() mustBe true
       (workDir / "file.pdf").byteArray mustEqual bytes
 
-      verify(mockObjectStoreClient).getObject[Source[ByteString, NotUsed]](eqTo(Path.File(attachment.location)), eqTo(owner))(any(), any())
+      verify(mockObjectStoreClient).getObject[Source[ByteString, NotUsed]](eqTo(attachment.location), eqTo(owner))(any(), any())
     }
 
     "must return an error if the file doesn't exist in object-store" in {
@@ -177,7 +177,7 @@ class AttachmentsServiceSpec extends AnyFreeSpec with Matchers with OptionValues
       val workDir = File.newTemporaryDirectory()
         .deleteOnExit()
 
-      val nonPdfOrJpgAttachment = attachment.copy(location = "some/text.txt")
+      val nonPdfOrJpgAttachment = attachment.copy(location = Path.File("some/text.txt"))
       val nonPdfOrJpgFile = retrievedObject.copy(location = Path.File("some/text.txt"), metadata = retrievedObject.metadata.copy(contentType = "text/plain"))
 
       val largeRetrievedObjectAttachment = attachment.copy()

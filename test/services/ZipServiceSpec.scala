@@ -21,8 +21,9 @@ import cats.data.NonEmptyChain
 import models.{Done, Pdf}
 import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
-import org.mockito.Mockito.{verify, when}
-import org.scalatest.EitherValues
+import org.mockito.Mockito
+import org.mockito.Mockito.{never, verify, when}
+import org.scalatest.{BeforeAndAfterEach, EitherValues}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -30,22 +31,30 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
 import scala.io.Source
 import scala.xml.{Utility, XML}
 
-class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with EitherValues with MockitoSugar {
+class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with EitherValues with MockitoSugar with BeforeAndAfterEach {
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+    Mockito.reset[Any](mockAttachmentsService, mockSubmissionMarkService)
+  }
 
   private val mockAttachmentsService: AttachmentsService = mock[AttachmentsService]
+  private val mockSubmissionMarkService: SubmissionMarkService = mock[SubmissionMarkService]
 
   private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 12, 30, 45, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
 
   private val app = GuiceApplicationBuilder()
     .overrides(
       bind[Clock].toInstance(clock),
-      bind[AttachmentsService].toInstance(mockAttachmentsService)
+      bind[AttachmentsService].toInstance(mockAttachmentsService),
+      bind[SubmissionMarkService].toInstance(mockSubmissionMarkService)
     )
     .configure(
       "metadata.format" -> "format",
@@ -73,8 +82,8 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     timeOfReceipt = LocalDateTime.of(2022, 2, 1, 12, 30, 45, 0).toInstant(ZoneOffset.UTC),
     formId = "formId",
     customerId = "customerId",
-    submissionMark = "submissionMark",
-    casKey = "casKey",
+    submissionMark = Some("submissionMark"),
+    casKey = Some("casKey"),
     classificationType = "classificationType",
     businessArea = "businessArea"
   )
@@ -85,7 +94,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     metadata = metadata,
     attachments = Seq(
       Attachment(
-        location = "some/file.pdf",
+        location = Path.File("some/file.pdf"),
         contentMd5 = "asdfadsf",
         owner = "service"
       )
@@ -119,6 +128,43 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
       verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))
+      verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any(), any())
+    }
+
+    "must generate a zip when optional fields are not provided" in {
+
+      when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
+        .thenReturn(Future.successful(Right(Done)))
+
+      when(mockSubmissionMarkService.generateSubmissionMark(any(), any(), any()))
+        .thenReturn(Future.successful("submissionMark"))
+
+      val workDir = File.newTemporaryDirectory().deleteOnExit()
+      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
+      val pdf = Pdf(pdfFile, 4)
+
+      val minimalRequest = request.copy(
+        metadata = metadata.copy(
+          submissionMark = None,
+          casKey = None
+        )
+      )
+
+      val zip = service.createZip(workDir, pdf, minimalRequest, correlationId)(hc).futureValue.value
+
+      val tmpDir = File.newTemporaryDirectory().deleteOnExit()
+      zip.unzipTo(tmpDir)
+
+      zip.parent mustEqual workDir
+      val unzippedPdf = tmpDir / "correlationId-20220201-iform.pdf"
+      unzippedPdf.isSameContentAs(pdfFile) mustBe true
+
+      val unzippedMetadata = tmpDir / "correlationId-20220201-metadata.xml"
+      val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata2.xml").bufferedReader()))
+      XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
+
+      verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))
+      verify(mockSubmissionMarkService).generateSubmissionMark(any(), eqTo(pdfFile), eqTo(request.attachments))
     }
 
     "must return errors if the attachments service returns errors" in {

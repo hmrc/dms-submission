@@ -22,6 +22,7 @@ import play.api.Configuration
 import play.api.data.{Form, Mapping}
 import play.api.data.Forms._
 import play.api.data.validation.{Constraint, Invalid, Valid}
+import play.api.data.validation.Constraints._
 import uk.gov.hmrc.objectstore.client.Path
 
 import java.net.URL
@@ -49,25 +50,23 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
   )
 
   private def attachment(owner: String): Mapping[Attachment] = mapping(
-    "location" -> text.verifying(nonEmptyString),
+    "location" -> text.verifying(nonEmpty).transform[Path.File](Path.File(_), _.asUri),
     "contentMd5" -> text.verifying(validateContentMd5),
     "owner" -> optional(text).transform[String](_.getOrElse(owner), _.some)
   )(Attachment.apply)(Attachment.unapply)
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
-    "store" -> text
-      .verifying("error.invalid", _.toBooleanOption.isDefined)
-      .transform(_.toBoolean, (_: Boolean).toString),
-    "source" -> text,
+    "store" -> default(boolean, true),
+    "source" -> text.verifying(nonEmpty, maxLength(32)),
     "timeOfReceipt" -> text
       .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
       .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
-    "formId" -> text.verifying(nonEmptyString),
-    "customerId" -> text.verifying(nonEmptyString),
-    "submissionMark" -> text,
-    "casKey" -> text,
-    "classificationType" -> text,
-    "businessArea" -> text.verifying(nonEmptyString),
+    "formId" -> text.verifying(nonEmpty, maxLength(12)),
+    "customerId" -> text.verifying(nonEmpty, maxLength(32)),
+    "submissionMark" -> optional(text.verifying(nonEmpty, maxLength(32))),
+    "casKey" -> optional(text.verifying(nonEmpty, maxLength(65))),
+    "classificationType" -> text.verifying(nonEmpty, maxLength(64)),
+    "businessArea" -> text.verifying(nonEmpty, maxLength(32))
   )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
 
   private val validateContentMd5: Constraint[String] =
@@ -97,7 +96,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
     Constraint { attachments =>
       if (attachments.length > 5) Invalid("attachments.max") else {
 
-        val files = attachments.map(attachment => Path.File(attachment.location).fileName)
+        val files = attachments.map(_.location.fileName)
         val duplicateFiles = files.flatMap { file =>
           if (files.count(_ == file) > 1) Some(file) else None
         }.toSet
@@ -120,10 +119,5 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       } else {
         Invalid("submissionReference.invalid")
       }
-    }
-
-  private val nonEmptyString: Constraint[String] =
-    Constraint { string =>
-      if (string.trim.isEmpty) Invalid("error.required") else Valid
     }
 }

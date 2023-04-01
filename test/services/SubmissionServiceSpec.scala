@@ -89,8 +89,8 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
       timeOfReceipt = LocalDateTime.of(2022, 2, 2, 0, 0, 0).toInstant(ZoneOffset.UTC),
       formId = "formId",
       customerId = "customerId",
-      submissionMark = "submissionMark",
-      casKey = "casKey",
+      submissionMark = None,
+      casKey = None,
       classificationType = "classificationType",
       businessArea = "businessArea"
     )

@@ -22,6 +22,7 @@ import org.scalatest.OptionValues
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import play.api.Configuration
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
@@ -32,6 +33,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   private val form = new SubmissionFormProvider(configuration).form("owner")
 
   private val timeOfReceipt = LocalDateTime.of(2022, 2, 1, 0, 0, 0)
+
   private val completeRequest = SubmissionRequest(
     submissionReference = Some("1234567890AB"),
     callbackUrl = "http://test-service.protected.mdtp/callback",
@@ -41,22 +43,30 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       timeOfReceipt = timeOfReceipt.toInstant(ZoneOffset.UTC),
       formId = "formId",
       customerId = "customerId",
-      submissionMark = "submissionMark",
-      casKey = "casKey",
+      submissionMark = Some("submissionMark"),
+      casKey = Some("casKey"),
       classificationType = "classificationType",
       businessArea = "businessArea"
     ),
     attachments = Seq(
       Attachment(
-        location = "foo/bar.pdf",
+        location = Path.File("foo/bar.pdf"),
         contentMd5 = "OFj2IjCsPJFfMAxmQxLGPw==",
         owner = "owner"
       ),
       Attachment(
-        location = "foo/baz.pdf",
+        location = Path.File("foo/baz.pdf"),
         contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
         owner = "owner2"
       )
+    )
+  )
+
+  private val minimalRequest = completeRequest.copy(
+    metadata = completeRequest.metadata.copy(
+      store = true,
+      submissionMark = None,
+      casKey = None
     )
   )
 
@@ -79,8 +89,15 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
     "attachments[1].owner" -> "owner2"
   )
 
+  private val minimalData =
+    completeData - "metadata.store" - "metadata.submissionMark" - "metadata.casKey"
+
   "must return a `SubmissionRequest` when given valid input" in {
     form.bind(completeData).value.value mustEqual completeRequest
+  }
+
+  "must return a `SubmissionRequest` when given minimal input" in {
+    form.bind(minimalData).value.value mustEqual minimalRequest
   }
 
   "submissionReference" - {
@@ -126,8 +143,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "metadata.store" - {
 
-    behave like requiredField("metadata.store")
-
     "must fail if it is invalid" in {
       val boundField = form.bind(Map("metadata.store" -> "foobar"))("metadata.store")
       boundField.hasErrors mustEqual true
@@ -136,6 +151,13 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
 
   "metadata.source" - {
     behave like requiredField("metadata.source")
+    behave like nonEmptyField("metadata.source")
+    behave like fieldWithMaxLength("metadata.source", 32)
+  }
+
+  "metadata.submissionMark" - {
+    behave like nonEmptyField("metadata.submissionMark")
+    behave like fieldWithMaxLength("metadata.submissionMark", 32)
   }
 
   "metadata.timeOfReceipt" - {
@@ -157,28 +179,30 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   "metadata.formId" - {
     behave like requiredField("metadata.formId")
     behave like nonEmptyField("metadata.formId")
+    behave like fieldWithMaxLength("metadata.formId", 12)
   }
 
   "metadata.customerId" - {
     behave like requiredField("metadata.customerId")
     behave like nonEmptyField("metadata.customerId")
-  }
-
-  "metadata.submissionMark" - {
-    behave like requiredField("metadata.submissionMark")
+    behave like fieldWithMaxLength("metadata.customerId", 32)
   }
 
   "metadata.casKey" - {
-    behave like requiredField("metadata.casKey")
+    behave like nonEmptyField("metadata.casKey")
+    behave like fieldWithMaxLength("metadata.casKey", 65)
   }
 
   "metadata.classificationType" - {
     behave like requiredField("metadata.classificationType")
+    behave like nonEmptyField("metadata.businessArea")
+    behave like fieldWithMaxLength("metadata.classificationType", 64)
   }
 
   "metadata.businessArea" - {
     behave like requiredField("metadata.businessArea")
     behave like nonEmptyField("metadata.businessArea")
+    behave like fieldWithMaxLength("metadata.businessArea", 32)
   }
 
   "attachments.location" - {
@@ -238,6 +262,13 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   private def nonEmptyField(key: String)(implicit pos: Position): Unit = {
     "must fail if it's empty" in {
       val boundField = form.bind(completeData - key + (key -> "   "))(key)
+      boundField.hasErrors mustEqual true
+    }
+  }
+
+  private def fieldWithMaxLength(key: String, maxLength: Int)(implicit pos: Position): Unit = {
+    s"must fail if input is longer than $maxLength" in {
+      val boundField = form.bind(completeData - key + (key -> "a" * (maxLength + 1)))(key)
       boundField.hasErrors mustEqual true
     }
   }
