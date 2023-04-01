@@ -22,6 +22,7 @@ import org.scalatest.OptionValues
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import play.api.Configuration
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
@@ -49,12 +50,12 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
     ),
     attachments = Seq(
       Attachment(
-        location = "foo/bar.pdf",
+        location = Path.File("foo/bar.pdf"),
         contentMd5 = "OFj2IjCsPJFfMAxmQxLGPw==",
         owner = "owner"
       ),
       Attachment(
-        location = "foo/baz.pdf",
+        location = Path.File("foo/baz.pdf"),
         contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
         owner = "owner2"
       )

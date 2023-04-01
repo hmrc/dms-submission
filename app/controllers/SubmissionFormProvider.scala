@@ -50,7 +50,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
   )
 
   private def attachment(owner: String): Mapping[Attachment] = mapping(
-    "location" -> text.verifying(nonEmpty),
+    "location" -> text.verifying(nonEmpty).transform[Path.File](Path.File(_), _.asUri),
     "contentMd5" -> text.verifying(validateContentMd5),
     "owner" -> optional(text).transform[String](_.getOrElse(owner), _.some)
   )(Attachment.apply)(Attachment.unapply)
@@ -96,7 +96,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
     Constraint { attachments =>
       if (attachments.length > 5) Invalid("attachments.max") else {
 
-        val files = attachments.map(attachment => Path.File(attachment.location).fileName)
+        val files = attachments.map(_.location.fileName)
         val duplicateFiles = files.flatMap { file =>
           if (files.count(_ == file) > 1) Some(file) else None
         }.toSet

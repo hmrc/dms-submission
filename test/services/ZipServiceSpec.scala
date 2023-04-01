@@ -31,6 +31,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
@@ -93,7 +94,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     metadata = metadata,
     attachments = Seq(
       Attachment(
-        location = "some/file.pdf",
+        location = Path.File("some/file.pdf"),
         contentMd5 = "asdfadsf",
         owner = "service"
       )

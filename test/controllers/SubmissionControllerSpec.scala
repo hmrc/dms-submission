@@ -38,6 +38,7 @@ import play.api.test.{FakeRequest, Helpers}
 import services.SubmissionService
 import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 import uk.gov.hmrc.internalauth.client._
+import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
@@ -143,7 +144,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         metadata = expectedMetadata,
         attachments = Seq(
           Attachment(
-            location = "file.pdf",
+            location = Path.File("file.pdf"),
             contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
             owner = "test-service"
           )
