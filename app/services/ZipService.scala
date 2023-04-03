@@ -52,6 +52,7 @@ class ZipService @Inject() (
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
       submissionMark   <- EitherT.liftF(getSubmissionMark(pdf, request))
+      _                <- EitherT.liftF(copyAttachments(tmpDir, request.attachments))
       _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix, submissionMark))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
     } yield zip
@@ -69,6 +70,13 @@ class ZipService @Inject() (
 
   private def copyPdfToZipDir(tmpDir: File, pdf: Pdf, filenamePrefix: String): Future[Done] = Future {
     pdf.file.copyTo(tmpDir / s"$filenamePrefix-iform.pdf")
+    Done
+  }
+
+  private def copyAttachments(tmpDir: File, attachments: Seq[File]): Future[Done] = Future {
+    attachments.foreach { attachment =>
+      attachment.copyToDirectory(tmpDir)
+    }
     Done
   }
 

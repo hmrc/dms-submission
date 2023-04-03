@@ -93,8 +93,6 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     attachments = Seq(attachment)
   )
 
-  private val hc: HeaderCarrier = HeaderCarrier()
-
   "createZip" - {
 
     "must create a zip with the right contents in the work dir" in {
@@ -115,6 +113,9 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val unzippedMetadata = tmpDir / "correlationId-20220201-metadata.xml"
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
+
+      val unzippedAttachment = tmpDir / attachment.name
+      unzippedAttachment.contentAsString mustEqual "Hello, World!"
 
       verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any())
     }
