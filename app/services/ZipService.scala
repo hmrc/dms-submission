@@ -45,22 +45,22 @@ class ZipService @Inject() (
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String)(implicit hc: HeaderCarrier): Future[EitherNec[String, File]] = {
+  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String): Future[EitherNec[String, File]] = {
     val result: EitherT[Future, NonEmptyChain[String], File] = for {
       tmpDir           <- EitherT.liftF(createTmpDir(workDir))
       reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
-      submissionMark   <- EitherT.liftF(getSubmissionMark(tmpDir, pdf, request))
+      submissionMark   <- EitherT.liftF(getSubmissionMark(pdf, request))
       _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix, submissionMark))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
     } yield zip
     result.value
   }
 
-  private def getSubmissionMark(workDir: File, pdf: Pdf, request: SubmissionRequest): Future[String] =
+  private def getSubmissionMark(pdf: Pdf, request: SubmissionRequest): Future[String] =
     request.metadata.submissionMark.map(Future.successful).getOrElse {
-      submissionMarkService.generateSubmissionMark(workDir, pdf.file, request.attachments)
+      submissionMarkService.generateSubmissionMark(pdf.file, request.attachments)
     }
 
   private def createTmpDir(workDir: File): Future[File] = Future {

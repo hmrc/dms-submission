@@ -18,7 +18,7 @@ package services
 
 import better.files.File
 import models.Pdf
-import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest}
+import models.submission.{SubmissionMetadata, SubmissionRequest}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, verify, when}
@@ -30,7 +30,6 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.objectstore.client.Path
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
@@ -85,17 +84,13 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     businessArea = "businessArea"
   )
 
+  private val attachment = File.newTemporaryFile().deleteOnExit().writeText("Hello, World!")
+
   private val request = SubmissionRequest(
     submissionReference = None,
     callbackUrl = "http://www.example.com",
     metadata = metadata,
-    attachments = Seq(
-      Attachment(
-        location = Path.File("some/file.pdf"),
-        contentMd5 = "asdfadsf",
-        owner = "service"
-      )
-    )
+    attachments = Seq(attachment)
   )
 
   private val hc: HeaderCarrier = HeaderCarrier()
@@ -105,10 +100,10 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     "must create a zip with the right contents in the work dir" in {
 
       val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
+      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes).deleteOnExit()
       val pdf = Pdf(pdfFile, 4)
 
-      val zip = service.createZip(workDir, pdf, request, correlationId)(hc).futureValue.value
+      val zip = service.createZip(workDir, pdf, request, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -121,16 +116,16 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any(), any())
+      verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any())
     }
 
     "must generate a zip when optional fields are not provided" in {
 
-      when(mockSubmissionMarkService.generateSubmissionMark(any(), any(), any()))
+      when(mockSubmissionMarkService.generateSubmissionMark(any(), any()))
         .thenReturn(Future.successful("submissionMark"))
 
       val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
+      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes).deleteOnExit()
       val pdf = Pdf(pdfFile, 4)
 
       val minimalRequest = request.copy(
@@ -140,7 +135,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
         )
       )
 
-      val zip = service.createZip(workDir, pdf, minimalRequest, correlationId)(hc).futureValue.value
+      val zip = service.createZip(workDir, pdf, minimalRequest, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -153,7 +148,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata2.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockSubmissionMarkService).generateSubmissionMark(any(), eqTo(pdfFile), eqTo(request.attachments))
+      verify(mockSubmissionMarkService).generateSubmissionMark(eqTo(pdfFile), eqTo(request.attachments))
     }
   }
 }
