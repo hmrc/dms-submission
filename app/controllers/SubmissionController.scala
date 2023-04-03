@@ -25,7 +25,9 @@ import models.Pdf
 import models.submission.{SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
+import play.api.libs.Files.TemporaryFile
 import play.api.libs.json.Json
+import play.api.mvc.MultipartFormData.FilePart
 import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.{PdfService, SubmissionService}
 import uk.gov.hmrc.internalauth.client._
@@ -99,12 +101,22 @@ class SubmissionController @Inject() (
       }
     } yield pdf
 
-  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile]): EitherT[Future, NonEmptyChain[String], Seq[File]] =
-    EitherT.pure {
-      formData.files.filter(_.key == "attachment").map { file =>
-        File(file.ref.path)
-      }
+  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherT[Future, NonEmptyChain[String], Seq[File]] = {
+
+    val attachments = formData.files.filter(_.key == "attachment")
+
+    lazy val duplicateFiles = attachments.flatMap { attachment =>
+      if (attachments.map(_.filename).count(_ == attachment.filename) > 1) Some(attachment.filename) else None
+    }.toSet
+
+    if (attachments.length > 5) {
+      EitherT.fromEither[Future](formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[File]])
+    } else if (duplicateFiles.nonEmpty) {
+      EitherT.fromEither[Future](formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[File]])
+    } else {
+      EitherT.pure(attachments.map(file => File(file.ref.path)))
     }
+  }
 
   private def formatError(key: String, message: String): String = s"$key: $message"
 

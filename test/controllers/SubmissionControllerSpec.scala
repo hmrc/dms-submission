@@ -334,6 +334,132 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       verify(mockSubmissionService, never()).submit(any(), any(), any(), any())(any())
     }
 
+    "must return BAD_REQUEST when there are more than 5 attachments" in {
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
+
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
+        .thenReturn(Future.successful(Right("submissionReference")))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      File(tempFile).writeByteArray(pdfBytes)
+
+      val attachment = SingletonTemporaryFileCreator.create()
+      File(attachment).writeText("Foo")
+
+      val attachments = (0 to 6).map { i =>
+        MultipartFormData.FilePart(
+          key = "attachment",
+          filename = s"attachment-$i.pdf",
+          contentType = Some("application/pdf"),
+          ref = attachment,
+          fileSize = File(attachment.path).size
+        )
+      }
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("http://localhost/callback"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = File(tempFile.path).size
+              )
+            ) ++ attachments,
+            badParts = Seq.empty
+          )
+        )
+
+      val result = route(app, request).value
+
+      status(result) mustEqual BAD_REQUEST
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain ("attachments: error.maxNumber")
+    }
+
+    "must return BAD_REQUEST when there are attachments with identical names" in {
+
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
+
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
+        .thenReturn(Future.successful(Right("submissionReference")))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      File(tempFile).writeByteArray(pdfBytes)
+
+      val attachment = SingletonTemporaryFileCreator.create()
+      File(attachment).writeText("Foo")
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("http://localhost/callback"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = File(tempFile.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = s"attachment.pdf",
+                contentType = Some("application/pdf"),
+                ref = attachment,
+                fileSize = File(attachment.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = s"attachment.pdf",
+                contentType = Some("application/pdf"),
+                ref = attachment,
+                fileSize = File(attachment.path).size
+              )
+            ),
+            badParts = Seq.empty
+          )
+        )
+
+      val result = route(app, request).value
+
+      status(result) mustEqual BAD_REQUEST
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain("attachments: error.duplicate-names")
+    }
+
+    "must return BAD_REQUEST when there are attachments that are larger than 5mb" in {
+
+    }
+
+    "must return BAD_REQUEST when there are attachments that are not PDFs or JPEGs" in {
+
+    }
+
     "must fail when the user is not authorised" in {
 
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.EmptyRetrieval))
