@@ -46,8 +46,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       casKey = Some("casKey"),
       classificationType = "classificationType",
       businessArea = "businessArea"
-    ),
-    attachments = Seq.empty
+    )
   )
 
   private val minimalRequest = completeRequest.copy(

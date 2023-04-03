@@ -17,6 +17,7 @@
 package services
 
 import audit.{AuditService, SubmitRequestEvent}
+import better.files.File
 import cats.data.{EitherT, NonEmptyChain}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
 import models.{Done, Pdf}
@@ -44,13 +45,13 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
 
-  def submit(request: SubmissionRequest, pdf: Pdf, owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
+  def submit(request: SubmissionRequest, pdf: Pdf, attachments: Seq[File], owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.submissionReference.getOrElse(submissionReferenceService.random())
       val correlationId = uuidService.random()
       val path = Path.Directory(s"sdes/$owner").file(s"$correlationId.zip")
       val result: EitherT[Future, NonEmptyChain[String], String] = for {
-        zip           <- EitherT(zipService.createZip(workDir, pdf, request, id))
+        zip           <- EitherT(zipService.createZip(workDir, pdf, request, attachments, id))
         objectSummary <- EitherT.liftF(objectStoreClient.putObject(path, zip.path.toFile))
         item          =  createSubmissionItem(request, objectSummary, id, owner, correlationId)
         _             <- EitherT.liftF(auditRequest(request, item))

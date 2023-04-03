@@ -64,9 +64,10 @@ class SubmissionController @Inject() (
     withTimer {
       val result: EitherT[Future, NonEmptyChain[String], String] = (
         EitherT.fromEither[Future](getSubmissionRequest(request.body)),
-        getPdf(request.body)
-        ).parTupled.flatMap { case (submissionRequest, file) =>
-        EitherT(submissionService.submit(submissionRequest, file, request.retrieval.value))
+        getPdf(request.body),
+        getAttachments(request.body)
+      ).parTupled.flatMap { case (submissionRequest, file, attachments) =>
+        EitherT(submissionService.submit(submissionRequest, file, attachments, request.retrieval.value))
       }
       result.fold(
         errors => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
@@ -97,6 +98,13 @@ class SubmissionController @Inject() (
           }
       }
     } yield pdf
+
+  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile]): EitherT[Future, NonEmptyChain[String], Seq[File]] =
+    EitherT.pure {
+      formData.files.filter(_.key == "attachment").map { file =>
+        File(file.ref.path)
+      }
+    }
 
   private def formatError(key: String, message: String): String = s"$key: $message"
 

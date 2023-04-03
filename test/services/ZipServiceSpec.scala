@@ -29,7 +29,6 @@ import org.scalatest.{BeforeAndAfterEach, EitherValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
-import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
@@ -85,13 +84,14 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   )
 
   private val attachment = File.newTemporaryFile().deleteOnExit().writeText("Hello, World!")
+  private val attachments = Seq(attachment)
 
   private val request = SubmissionRequest(
     submissionReference = None,
     callbackUrl = "http://www.example.com",
-    metadata = metadata,
-    attachments = Seq(attachment)
+    metadata = metadata
   )
+
 
   "createZip" - {
 
@@ -101,7 +101,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes).deleteOnExit()
       val pdf = Pdf(pdfFile, 4)
 
-      val zip = service.createZip(workDir, pdf, request, correlationId).futureValue.value
+      val zip = service.createZip(workDir, pdf, request, attachments, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -117,7 +117,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val unzippedAttachment = tmpDir / attachment.name
       unzippedAttachment.contentAsString mustEqual "Hello, World!"
 
-      verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any())
+      verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), eqTo(attachments))
     }
 
     "must generate a zip when optional fields are not provided" in {
@@ -136,7 +136,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
         )
       )
 
-      val zip = service.createZip(workDir, pdf, minimalRequest, correlationId).futureValue.value
+      val zip = service.createZip(workDir, pdf, minimalRequest, Seq.empty, correlationId).futureValue.value
 
       val tmpDir = File.newTemporaryDirectory().deleteOnExit()
       zip.unzipTo(tmpDir)
@@ -149,7 +149,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata2.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockSubmissionMarkService).generateSubmissionMark(eqTo(pdfFile), eqTo(request.attachments))
+      verify(mockSubmissionMarkService).generateSubmissionMark(eqTo(pdfFile), eqTo(Seq.empty))
     }
   }
 }

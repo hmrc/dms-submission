@@ -16,11 +16,8 @@
 
 package models.submission
 
-import better.files.File
-
 final case class SubmissionRequest(
                                     submissionReference: Option[String],
                                     callbackUrl: String,
                                     metadata: SubmissionMetadata,
-                                    attachments: Seq[File]
                                   )

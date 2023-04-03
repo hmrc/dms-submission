@@ -23,7 +23,7 @@ import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionRespo
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
@@ -44,7 +44,7 @@ import java.time.{LocalDateTime, ZoneOffset}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutures with OptionValues with MockitoSugar with BeforeAndAfterEach {
+class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with OptionValues with MockitoSugar with BeforeAndAfterEach {
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -85,17 +85,22 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
     "must return ACCEPTED when a submission is successful" in {
 
       val fileCaptor: ArgumentCaptor[Pdf] = ArgumentCaptor.forClass(classOf[Pdf])
+      val attachmentCaptor: ArgumentCaptor[Seq[File]] = ArgumentCaptor.forClass(classOf[Seq[File]])
 
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
-      when(mockSubmissionService.submit(any(), any(), any())(any()))
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
         .thenReturn(Future.successful(Right("submissionReference")))
 
       val tempFile = SingletonTemporaryFileCreator.create()
-      val betterTempFile = File(tempFile.toPath)
-        .deleteOnExit()
-        .writeByteArray(pdfBytes)
+      File(tempFile).writeByteArray(pdfBytes)
+
+      val expectedAttachment1 = SingletonTemporaryFileCreator.create()
+      File(expectedAttachment1).writeText("Foo")
+
+      val expectedAttachment2 = SingletonTemporaryFileCreator.create()
+      File(expectedAttachment2).writeText("Bar")
 
       val request = FakeRequest(routes.SubmissionController.submit)
         .withHeaders(AUTHORIZATION -> "my-token")
@@ -116,7 +121,21 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
                 filename = "form.pdf",
                 contentType = Some("application/pdf"),
                 ref = tempFile,
-                fileSize = betterTempFile.size
+                fileSize = File(tempFile.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = "attachment.pdf",
+                contentType = Some("application/pdf"),
+                ref = expectedAttachment1,
+                fileSize = File(expectedAttachment1.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = "attachment.jpg",
+                contentType = Some("image/jpeg"),
+                ref = expectedAttachment2,
+                fileSize = File(expectedAttachment2.path).size
               )
             ),
             badParts = Seq.empty
@@ -139,7 +158,6 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         submissionReference = None,
         callbackUrl = "http://localhost/callback",
         metadata = expectedMetadata,
-        attachments = Seq.empty
       )
 
       val result = route(app, request).value
@@ -147,10 +165,13 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       status(result) mustEqual ACCEPTED
       contentAsJson(result) mustEqual Json.obj("id" -> "submissionReference")
 
-      verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture(), eqTo("test-service"))(any())
+      verify(mockSubmissionService, times(1)).submit(eqTo(expectedRequest), fileCaptor.capture(), attachmentCaptor.capture(), eqTo("test-service"))(any())
 
-      // TODO make this less flaky
-      fileCaptor.getValue.file.contentAsString mustEqual betterTempFile.contentAsString
+      fileCaptor.getValue.file.contentAsString mustEqual File(tempFile.path).contentAsString
+
+      val Seq(attachment1, attachment2) = attachmentCaptor.getValue
+      attachment1.contentAsString mustEqual File(expectedAttachment1.path).contentAsString
+      attachment2.contentAsString mustEqual File(expectedAttachment2.path).contentAsString
     }
 
     "must fail when the submission fails" in {
@@ -158,7 +179,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
-      when(mockSubmissionService.submit(any(), any(), any())(any()))
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
         .thenReturn(Future.failed(new RuntimeException()))
 
       val tempFile = SingletonTemporaryFileCreator.create()
@@ -200,7 +221,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
 
-      when(mockSubmissionService.submit(any(), any(), any())(any()))
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
         .thenReturn(Future.successful(Left(NonEmptyChain.one("some error"))))
 
       val tempFile = SingletonTemporaryFileCreator.create()
@@ -265,7 +286,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         "form: This field is required"
       )
 
-      verify(mockSubmissionService, never()).submit(any(), any(), any())(any())
+      verify(mockSubmissionService, never()).submit(any(), any(), any(), any())(any())
     }
 
     "must return BAD_REQUEST when the user provides a file which is not a pdf" in {
@@ -310,7 +331,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
       responseBody.errors must contain ("form: error.pdf.invalid")
 
-      verify(mockSubmissionService, never()).submit(any(), any(), any())(any())
+      verify(mockSubmissionService, never()).submit(any(), any(), any(), any())(any())
     }
 
     "must fail when the user is not authorised" in {
@@ -351,7 +372,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       route(app, request).value.failed.futureValue
 
-      verify(mockSubmissionService, never()).submit(any(), any(), any())(any())
+      verify(mockSubmissionService, never()).submit(any(), any(), any(), any())(any())
     }
   }
 }

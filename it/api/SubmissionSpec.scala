@@ -193,7 +193,12 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
             filename = "form.pdf",
             contentType = Some("application/octet-stream"),
             ref = Source.single(pdfBytes),
-            fileSize = 0
+          ),
+          FilePart(
+            key = "attachment",
+            filename = "extra.pdf",
+            contentType = Some("application/pdf"),
+            ref = Source.single(ByteString.fromString("Hello, World!"))
           )
         ))
       ).futureValue

@@ -40,7 +40,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
       "callbackUrl" -> text.verifying(validateUrl),
       "metadata" -> metadata
-    )(SubmissionRequest(_, _, _, Seq.empty))(request => Some((request.submissionReference, request.callbackUrl, request.metadata)))
+    )(SubmissionRequest.apply)(SubmissionRequest.unapply)
   )
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
