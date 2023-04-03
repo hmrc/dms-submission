@@ -32,7 +32,6 @@ import scala.xml.{Node, Utility, XML}
 
 @Singleton
 class ZipService @Inject() (
-                             attachmentsService: AttachmentsService,
                              clock: Clock,
                              configuration: Configuration,
                              submissionMarkService: SubmissionMarkService
@@ -51,7 +50,6 @@ class ZipService @Inject() (
       tmpDir           <- EitherT.liftF(createTmpDir(workDir))
       reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
-      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments))
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
       submissionMark   <- EitherT.liftF(getSubmissionMark(tmpDir, pdf, request))
       _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix, submissionMark))

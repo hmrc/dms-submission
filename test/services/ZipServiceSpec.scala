@@ -17,16 +17,15 @@
 package services
 
 import better.files.File
-import cats.data.NonEmptyChain
-import models.{Done, Pdf}
+import models.Pdf
 import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, verify, when}
-import org.scalatest.{BeforeAndAfterEach, EitherValues}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, EitherValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -42,10 +41,9 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    Mockito.reset[Any](mockAttachmentsService, mockSubmissionMarkService)
+    Mockito.reset[Any](mockSubmissionMarkService)
   }
 
-  private val mockAttachmentsService: AttachmentsService = mock[AttachmentsService]
   private val mockSubmissionMarkService: SubmissionMarkService = mock[SubmissionMarkService]
 
   private val clock = Clock.fixed(LocalDateTime.of(2022, 3, 2, 12, 30, 45, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
@@ -53,7 +51,6 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
   private val app = GuiceApplicationBuilder()
     .overrides(
       bind[Clock].toInstance(clock),
-      bind[AttachmentsService].toInstance(mockAttachmentsService),
       bind[SubmissionMarkService].toInstance(mockSubmissionMarkService)
     )
     .configure(
@@ -107,9 +104,6 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
 
     "must create a zip with the right contents in the work dir" in {
 
-      when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
-        .thenReturn(Future.successful(Right(Done)))
-
       val workDir = File.newTemporaryDirectory().deleteOnExit()
       val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
       val pdf = Pdf(pdfFile, 4)
@@ -127,14 +121,10 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))
       verify(mockSubmissionMarkService, never()).generateSubmissionMark(any(), any(), any())
     }
 
     "must generate a zip when optional fields are not provided" in {
-
-      when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
-        .thenReturn(Future.successful(Right(Done)))
 
       when(mockSubmissionMarkService.generateSubmissionMark(any(), any(), any()))
         .thenReturn(Future.successful("submissionMark"))
@@ -163,33 +153,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
       val expectedMetadata = Utility.trim(XML.load(Source.fromResource("metadata2.xml").bufferedReader()))
       XML.loadString(unzippedMetadata.contentAsString) mustEqual expectedMetadata
 
-      verify(mockAttachmentsService).downloadAttachments(any(), eqTo(request.attachments))(eqTo(hc))
       verify(mockSubmissionMarkService).generateSubmissionMark(any(), eqTo(pdfFile), eqTo(request.attachments))
-    }
-
-    "must return errors if the attachments service returns errors" in {
-
-      when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
-        .thenReturn(Future.successful(Left(NonEmptyChain.one("some error"))))
-
-      val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
-      val pdf = Pdf(pdfFile, 4)
-
-      val errors = service.createZip(workDir, pdf, request, correlationId)(hc).futureValue.left.value.toChain.toList
-      errors must contain only ("some error")
-    }
-
-    "must fail if the attachments service fails" in {
-
-      when(mockAttachmentsService.downloadAttachments(any(), any())(any()))
-        .thenReturn(Future.failed(new RuntimeException()))
-
-      val workDir = File.newTemporaryDirectory().deleteOnExit()
-      val pdfFile = File.newTemporaryFile().writeByteArray(pdfBytes)
-      val pdf = Pdf(pdfFile, 4)
-
-      service.createZip(workDir, pdf, request, correlationId)(hc).failed.futureValue
     }
   }
 }
