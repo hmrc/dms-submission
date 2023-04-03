@@ -29,6 +29,7 @@ import org.scalatest.{BeforeAndAfterEach, EitherValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
+import models.submission.Attachment
 
 import java.time.{Clock, LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
@@ -83,7 +84,7 @@ class ZipServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures with In
     businessArea = "businessArea"
   )
 
-  private val attachment = File.newTemporaryFile().deleteOnExit().writeText("Hello, World!")
+  private val attachment = Attachment("myFile.pdf", File.newTemporaryFile().deleteOnExit().writeText("Hello, World!"))
   private val attachments = Seq(attachment)
 
   private val request = SubmissionRequest(

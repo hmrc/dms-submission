@@ -19,6 +19,7 @@ package services
 import akka.stream.Materializer
 import akka.stream.scaladsl.FileIO
 import better.files.File
+import models.submission.Attachment
 
 import java.security.MessageDigest
 import java.util.Base64
@@ -30,10 +31,10 @@ class SubmissionMarkService @Inject() ()(implicit mat: Materializer, ec: Executi
 
   private val base64Encoder = Base64.getEncoder
 
-  def generateSubmissionMark(pdf: File, attachments: Seq[File]): Future[String] = {
+  def generateSubmissionMark(pdf: File, attachments: Seq[Attachment]): Future[String] = {
     val digest = MessageDigest.getInstance("SHA1")
     attachments.sortBy(_.name).foldLeft(FileIO.fromPath(pdf.path)) { (source, attachment) =>
-      source ++ FileIO.fromPath(attachment.path)
+      source ++ FileIO.fromPath(attachment.file.path)
     }.runForeach(bs => digest.update(bs.asByteBuffer)).map { _ =>
       base64Encoder.encodeToString(digest.digest())
     }

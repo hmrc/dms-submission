@@ -17,9 +17,8 @@
 package services
 
 import audit.{AuditService, SubmitRequestEvent}
-import better.files.File
 import cats.data.{EitherT, NonEmptyChain}
-import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus, SubmissionRequest}
+import models.submission._
 import models.{Done, Pdf}
 import play.api.Logging
 import repositories.SubmissionItemRepository
@@ -45,7 +44,7 @@ class SubmissionService @Inject() (
                                   )(implicit ec: ExecutionContext) extends Logging {
 
 
-  def submit(request: SubmissionRequest, pdf: Pdf, attachments: Seq[File], owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
+  def submit(request: SubmissionRequest, pdf: Pdf, attachments: Seq[Attachment], owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.submissionReference.getOrElse(submissionReferenceService.random())
       val correlationId = uuidService.random()

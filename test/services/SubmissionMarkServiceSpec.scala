@@ -23,6 +23,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+import models.submission.Attachment
 
 import java.security.MessageDigest
 import java.util.Base64
@@ -48,7 +49,7 @@ class SubmissionMarkServiceSpec extends AnyFreeSpec with Matchers with OptionVal
     val file2 = workDir / "a.pdf"
     file2.write("FILE2")
 
-    val attachments = Seq(file1, file2)
+    val attachments = Seq(Attachment("b.pdf", file1), Attachment("a.pdf", file2))
 
     val digest = MessageDigest.getInstance("SHA1")
     val expectedHash = digest.digest("PDFFILE2FILE1".getBytes("UTF-8"))

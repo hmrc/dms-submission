@@ -22,12 +22,10 @@ import cats.implicits._
 import com.codahale.metrics.{MetricRegistry, Timer}
 import com.kenshoo.play.metrics.Metrics
 import models.Pdf
-import models.submission.{SubmissionRequest, SubmissionResponse}
+import models.submission.{Attachment, SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
-import play.api.libs.Files.TemporaryFile
 import play.api.libs.json.Json
-import play.api.mvc.MultipartFormData.FilePart
 import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.{PdfService, SubmissionService}
 import uk.gov.hmrc.internalauth.client._
@@ -101,7 +99,7 @@ class SubmissionController @Inject() (
       }
     } yield pdf
 
-  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherT[Future, NonEmptyChain[String], Seq[File]] = {
+  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherT[Future, NonEmptyChain[String], Seq[Attachment]] = {
 
     val attachments = formData.files.filter(_.key == "attachment")
 
@@ -110,11 +108,11 @@ class SubmissionController @Inject() (
     }.toSet
 
     if (attachments.length > 5) {
-      EitherT.fromEither[Future](formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[File]])
+      EitherT.fromEither[Future](formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[Attachment]])
     } else if (duplicateFiles.nonEmpty) {
-      EitherT.fromEither[Future](formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[File]])
+      EitherT.fromEither[Future](formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[Attachment]])
     } else {
-      EitherT.pure(attachments.map(file => File(file.ref.path)))
+      EitherT.pure(attachments.map(file => Attachment(file.filename, File(file.ref.path))))
     }
   }
 

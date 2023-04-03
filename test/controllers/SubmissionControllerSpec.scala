@@ -19,7 +19,7 @@ package controllers
 import better.files.File
 import cats.data.NonEmptyChain
 import models.Pdf
-import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
+import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
@@ -85,7 +85,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
     "must return ACCEPTED when a submission is successful" in {
 
       val fileCaptor: ArgumentCaptor[Pdf] = ArgumentCaptor.forClass(classOf[Pdf])
-      val attachmentCaptor: ArgumentCaptor[Seq[File]] = ArgumentCaptor.forClass(classOf[Seq[File]])
+      val attachmentCaptor: ArgumentCaptor[Seq[Attachment]] = ArgumentCaptor.forClass(classOf[Seq[Attachment]])
 
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
         .thenReturn(Future.successful(Retrieval.Username("test-service")))
@@ -170,8 +170,8 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       fileCaptor.getValue.file.contentAsString mustEqual File(tempFile.path).contentAsString
 
       val Seq(attachment1, attachment2) = attachmentCaptor.getValue
-      attachment1.contentAsString mustEqual File(expectedAttachment1.path).contentAsString
-      attachment2.contentAsString mustEqual File(expectedAttachment2.path).contentAsString
+      attachment1.file.contentAsString mustEqual File(expectedAttachment1.path).contentAsString
+      attachment2.file.contentAsString mustEqual File(expectedAttachment2.path).contentAsString
     }
 
     "must fail when the submission fails" in {
