@@ -454,10 +454,110 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
     "must return BAD_REQUEST when there are attachments that are larger than 5mb" in {
 
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
+
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
+        .thenReturn(Future.successful(Right("submissionReference")))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      File(tempFile).writeByteArray(pdfBytes)
+
+      val attachment = SingletonTemporaryFileCreator.create()
+      File(attachment).writeText("A" * 5000001).deleteOnExit()
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("http://localhost/callback"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = File(tempFile.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = s"attachment.pdf",
+                contentType = Some("application/pdf"),
+                ref = attachment,
+                fileSize = 5000001
+              )
+            ),
+            badParts = Seq.empty
+          )
+        )
+
+      val result = route(app, request).value
+
+      status(result) mustEqual BAD_REQUEST
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain("attachments/attachment.pdf: error.file-size")
     }
 
     "must return BAD_REQUEST when there are attachments that are not PDFs or JPEGs" in {
 
+      when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
+        .thenReturn(Future.successful(Retrieval.Username("test-service")))
+
+      when(mockSubmissionService.submit(any(), any(), any(), any())(any()))
+        .thenReturn(Future.successful(Right("submissionReference")))
+
+      val tempFile = SingletonTemporaryFileCreator.create()
+      File(tempFile).writeByteArray(pdfBytes)
+
+      val attachment = SingletonTemporaryFileCreator.create()
+      File(attachment).writeText("FOO").deleteOnExit()
+
+      val request = FakeRequest(routes.SubmissionController.submit)
+        .withHeaders(AUTHORIZATION -> "my-token")
+        .withMultipartFormDataBody(
+          MultipartFormData(
+            dataParts = Map(
+              "callbackUrl" -> Seq("http://localhost/callback"),
+              "metadata.source" -> Seq("source"),
+              "metadata.timeOfReceipt" -> Seq(DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.of(2022, 2, 1, 0, 0, 0))),
+              "metadata.formId" -> Seq("formId"),
+              "metadata.customerId" -> Seq("customerId"),
+              "metadata.classificationType" -> Seq("classificationType"),
+              "metadata.businessArea" -> Seq("businessArea")
+            ),
+            files = Seq(
+              MultipartFormData.FilePart(
+                key = "form",
+                filename = "form.pdf",
+                contentType = Some("application/pdf"),
+                ref = tempFile,
+                fileSize = File(tempFile.path).size
+              ),
+              MultipartFormData.FilePart(
+                key = "attachment",
+                filename = s"attachment.pdf",
+                contentType = Some("application/json"),
+                ref = attachment,
+                fileSize = 3
+              )
+            ),
+            badParts = Seq.empty
+          )
+        )
+
+      val result = route(app, request).value
+
+      status(result) mustEqual BAD_REQUEST
+      val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
+      responseBody.errors must contain("attachments/attachment.pdf: error.mime-type")
     }
 
     "must fail when the user is not authorised" in {

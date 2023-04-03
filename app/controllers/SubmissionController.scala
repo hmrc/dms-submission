@@ -50,6 +50,8 @@ class SubmissionController @Inject() (
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 
+  private val acceptedMimeTypes = Set("application/pdf", "image/jpeg")
+
   private val permission = Predicate.Permission(
     resource = Resource(
       resourceType = ResourceType("dms-submission"),
@@ -107,13 +109,23 @@ class SubmissionController @Inject() (
       if (attachments.map(_.filename).count(_ == attachment.filename) > 1) Some(attachment.filename) else None
     }.toSet
 
-    if (attachments.length > 5) {
-      EitherT.fromEither[Future](formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[Attachment]])
+    val result = if (attachments.length > 5) {
+      formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[Attachment]]
     } else if (duplicateFiles.nonEmpty) {
-      EitherT.fromEither[Future](formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[Attachment]])
+      formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[Attachment]]
     } else {
-      EitherT.pure(attachments.map(file => Attachment(file.filename, File(file.ref.path))))
+      attachments.traverse { tempFile =>
+        if (tempFile.fileSize > 5000000) {
+          formatError(s"attachments/${tempFile.filename}", Messages("error.file-size")).leftNec[Attachment]
+        } else if (!acceptedMimeTypes.contains(tempFile.contentType.getOrElse(""))) {
+          formatError(s"attachments/${tempFile.filename}", Messages("error.mime-type")).leftNec[Attachment]
+        } else {
+          Attachment(tempFile.filename, File(tempFile.ref.path)).rightNec[String]
+        }
+      }
     }
+
+    EitherT.fromEither[Future](result)
   }
 
   private def formatError(key: String, message: String): String = s"$key: $message"
