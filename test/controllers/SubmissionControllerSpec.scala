@@ -19,7 +19,7 @@ package controllers
 import better.files.File
 import cats.data.NonEmptyChain
 import models.Pdf
-import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest, SubmissionResponse}
+import models.submission.{SubmissionMetadata, SubmissionRequest, SubmissionResponse}
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.{never, times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
@@ -36,9 +36,8 @@ import play.api.mvc.MultipartFormData
 import play.api.test.Helpers._
 import play.api.test.{FakeRequest, Helpers}
 import services.SubmissionService
-import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 import uk.gov.hmrc.internalauth.client._
-import uk.gov.hmrc.objectstore.client.Path
+import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
@@ -109,9 +108,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
               "metadata.formId" -> Seq("formId"),
               "metadata.customerId" -> Seq("customerId"),
               "metadata.classificationType" -> Seq("classificationType"),
-              "metadata.businessArea" -> Seq("businessArea"),
-              "attachments[0].location" -> Seq("file.pdf"),
-              "attachments[0].contentMd5" -> Seq("lpSKrT/K6AwIo1ybWVjNiQ==")
+              "metadata.businessArea" -> Seq("businessArea")
             ),
             files = Seq(
               MultipartFormData.FilePart(
@@ -142,13 +139,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
         submissionReference = None,
         callbackUrl = "http://localhost/callback",
         metadata = expectedMetadata,
-        attachments = Seq(
-          Attachment(
-            location = Path.File("file.pdf"),
-            contentMd5 = "lpSKrT/K6AwIo1ybWVjNiQ==",
-            owner = "test-service"
-          )
-        )
+        attachments = Seq.empty
       )
 
       val result = route(app, request).value

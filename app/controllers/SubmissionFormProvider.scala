@@ -16,44 +16,32 @@
 
 package controllers
 
-import models.submission.{Attachment, SubmissionMetadata, SubmissionRequest}
-import cats.implicits._
+import models.submission.{SubmissionMetadata, SubmissionRequest}
 import play.api.Configuration
-import play.api.data.{Form, Mapping}
 import play.api.data.Forms._
-import play.api.data.validation.{Constraint, Invalid, Valid}
 import play.api.data.validation.Constraints._
-import uk.gov.hmrc.objectstore.client.Path
+import play.api.data.validation.{Constraint, Invalid, Valid}
+import play.api.data.{Form, Mapping}
 
 import java.net.URL
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
-import java.util.Base64
 import javax.inject.{Inject, Singleton}
 import scala.util.{Failure, Success, Try}
 
 @Singleton
 class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
-  private val base64Decoder: Base64.Decoder = Base64.getDecoder
-
   private val allowLocalhostCallbacks: Boolean =
     configuration.get[Boolean]("allow-localhost-callbacks")
 
-  def form(owner: String): Form[SubmissionRequest] = Form(
+  def form: Form[SubmissionRequest] = Form(
     mapping(
       "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
       "callbackUrl" -> text.verifying(validateUrl),
-      "metadata" -> metadata,
-      "attachments" -> seq(attachment(owner)).verifying(attachmentsConstraint)
-    )(SubmissionRequest.apply)(SubmissionRequest.unapply)
+      "metadata" -> metadata
+    )(SubmissionRequest(_, _, _, Seq.empty))(request => Some((request.submissionReference, request.callbackUrl, request.metadata)))
   )
-
-  private def attachment(owner: String): Mapping[Attachment] = mapping(
-    "location" -> text.verifying(nonEmpty).transform[Path.File](Path.File(_), _.asUri),
-    "contentMd5" -> text.verifying(validateContentMd5),
-    "owner" -> optional(text).transform[String](_.getOrElse(owner), _.some)
-  )(Attachment.apply)(Attachment.unapply)
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
     "store" -> default(boolean, true),
@@ -69,14 +57,6 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
     "businessArea" -> text.verifying(nonEmpty, maxLength(32))
   )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
 
-  private val validateContentMd5: Constraint[String] =
-    Constraint { string =>
-      Try(base64Decoder.decode(string)) match {
-        case Success(bytes) if bytes.length == 16 => Valid
-        case _                                    => Invalid("attachments.contentMd5.invalid")
-      }
-    }
-
   private val validateUrl: Constraint[String] =
     Constraint { string =>
       Try(new URL(string)) match {
@@ -89,23 +69,6 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
             Invalid("callbackUrl.invalidHost")
           }
         case Failure(_) => Invalid("callbackUrl.invalid")
-      }
-    }
-
-  private val attachmentsConstraint: Constraint[Seq[Attachment]] =
-    Constraint { attachments =>
-      if (attachments.length > 5) Invalid("attachments.max") else {
-
-        val files = attachments.map(_.location.fileName)
-        val duplicateFiles = files.flatMap { file =>
-          if (files.count(_ == file) > 1) Some(file) else None
-        }.toSet
-
-        if (duplicateFiles.nonEmpty) {
-          Invalid("attachments.duplicateFilenames", duplicateFiles.mkString(", "))
-        } else {
-          Valid
-        }
       }
     }
 
