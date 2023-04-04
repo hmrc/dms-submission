@@ -31,10 +31,10 @@ class SubmissionMarkService @Inject() ()(implicit mat: Materializer, ec: Executi
 
   private val base64Encoder = Base64.getEncoder
 
-  def generateSubmissionMark(workDir: File, pdf: File, attachments: Seq[Attachment]): Future[String] = {
+  def generateSubmissionMark(pdf: File, attachments: Seq[Attachment]): Future[String] = {
     val digest = MessageDigest.getInstance("SHA1")
-    attachments.sortBy(_.location.fileName).foldLeft(FileIO.fromPath(pdf.path)) { (source, attachment) =>
-      source ++ FileIO.fromPath((workDir / attachment.location.fileName).path)
+    attachments.sortBy(_.name).foldLeft(FileIO.fromPath(pdf.path)) { (source, attachment) =>
+      source ++ FileIO.fromPath(attachment.file.path)
     }.runForeach(bs => digest.update(bs.asByteBuffer)).map { _ =>
       base64Encoder.encodeToString(digest.digest())
     }

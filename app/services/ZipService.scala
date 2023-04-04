@@ -19,10 +19,9 @@ package services
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import config.FileSystemExecutionContext
-import models.submission.SubmissionRequest
+import models.submission.{Attachment, SubmissionRequest}
 import models.{Done, Pdf}
 import play.api.Configuration
-import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, LocalDateTime, ZoneOffset}
@@ -32,7 +31,6 @@ import scala.xml.{Node, Utility, XML}
 
 @Singleton
 class ZipService @Inject() (
-                             attachmentsService: AttachmentsService,
                              clock: Clock,
                              configuration: Configuration,
                              submissionMarkService: SubmissionMarkService
@@ -46,23 +44,23 @@ class ZipService @Inject() (
   private val condensedDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   private val filenameDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, id: String)(implicit hc: HeaderCarrier): Future[EitherNec[String, File]] = {
+  def createZip(workDir: File, pdf: Pdf, request: SubmissionRequest, attachments: Seq[Attachment], id: String): Future[EitherNec[String, File]] = {
     val result: EitherT[Future, NonEmptyChain[String], File] = for {
       tmpDir           <- EitherT.liftF(createTmpDir(workDir))
       reconciliationId =  s"$id-${condensedDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
       filenamePrefix   =  s"$id-${filenameDateFormatter.format(LocalDateTime.ofInstant(request.metadata.timeOfReceipt, ZoneOffset.UTC))}"
-      _                <- EitherT(attachmentsService.downloadAttachments(tmpDir, request.attachments))
       _                <- EitherT.liftF(copyPdfToZipDir(tmpDir, pdf, filenamePrefix))
-      submissionMark   <- EitherT.liftF(getSubmissionMark(tmpDir, pdf, request))
-      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, id, reconciliationId, filenamePrefix, submissionMark))
+      submissionMark   <- EitherT.liftF(getSubmissionMark(pdf, request, attachments))
+      _                <- EitherT.liftF(copyAttachments(tmpDir, attachments))
+      _                <- EitherT.liftF(createMetadataXmlFile(tmpDir, pdf, request, attachments, id, reconciliationId, filenamePrefix, submissionMark))
       zip              <- EitherT.liftF(createZip(workDir, tmpDir))
     } yield zip
     result.value
   }
 
-  private def getSubmissionMark(workDir: File, pdf: Pdf, request: SubmissionRequest): Future[String] =
+  private def getSubmissionMark(pdf: Pdf, request: SubmissionRequest, attachments: Seq[Attachment]): Future[String] =
     request.metadata.submissionMark.map(Future.successful).getOrElse {
-      submissionMarkService.generateSubmissionMark(workDir, pdf.file, request.attachments)
+      submissionMarkService.generateSubmissionMark(pdf.file, attachments)
     }
 
   private def createTmpDir(workDir: File): Future[File] = Future {
@@ -74,9 +72,16 @@ class ZipService @Inject() (
     Done
   }
 
-  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, id: String, reconciliationId: String, filenamePrefix: String, submissionMark: String): Future[Done] = Future {
+  private def copyAttachments(tmpDir: File, attachments: Seq[Attachment]): Future[Done] = Future {
+    attachments.foreach { attachment =>
+      attachment.file.copyTo(tmpDir / attachment.name)
+    }
+    Done
+  }
+
+  private def createMetadataXmlFile(tmpDir: File, pdf: Pdf, request: SubmissionRequest, attachments: Seq[_], id: String, reconciliationId: String, filenamePrefix: String, submissionMark: String): Future[Done] = Future {
     val metadataFile = tmpDir / s"$filenamePrefix-metadata.xml"
-    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, pdf.numberOfPages, id, reconciliationId, submissionMark)), xmlDecl = true)
+    XML.save(metadataFile.pathAsString, Utility.trim(createMetadata(request, attachments, pdf.numberOfPages, id, reconciliationId, submissionMark)), xmlDecl = true)
     Done
   }
 
@@ -85,7 +90,7 @@ class ZipService @Inject() (
     tmpDir.zipTo(zip)
   }
 
-  private def createMetadata(request: SubmissionRequest, numberOfPages: Int, id: String, reconciliationId: String, submissionMark: String): Node =
+  private def createMetadata(request: SubmissionRequest, attachments: Seq[_], numberOfPages: Int, id: String, reconciliationId: String, submissionMark: String): Node =
     <documents xmlns="http://govtalk.gov.uk/hmrc/gis/content/1">
       <document>
         <header>
@@ -110,7 +115,7 @@ class ZipService @Inject() (
           createAttribute("cas_key", "string", request.metadata.casKey.getOrElse("")),
           createAttribute("classification_type", "string", request.metadata.classificationType),
           createAttribute("business_area", "string", request.metadata.businessArea),
-          createAttribute("attachment_count", "int", request.attachments.size.toString)
+          createAttribute("attachment_count", "int", attachments.size.toString)
         ) }
         </metadata>
       </document>

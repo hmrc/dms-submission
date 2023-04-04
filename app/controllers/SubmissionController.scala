@@ -22,7 +22,7 @@ import cats.implicits._
 import com.codahale.metrics.{MetricRegistry, Timer}
 import com.kenshoo.play.metrics.Metrics
 import models.Pdf
-import models.submission.{SubmissionRequest, SubmissionResponse}
+import models.submission.{Attachment, SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
 import play.api.libs.Files
 import play.api.libs.json.Json
@@ -50,6 +50,8 @@ class SubmissionController @Inject() (
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 
+  private val acceptedMimeTypes = Set("application/pdf", "image/jpeg")
+
   private val permission = Predicate.Permission(
     resource = Resource(
       resourceType = ResourceType("dms-submission"),
@@ -63,10 +65,11 @@ class SubmissionController @Inject() (
   def submit = authorised.compose(Action(parse.multipartFormData(false))).async { implicit request =>
     withTimer {
       val result: EitherT[Future, NonEmptyChain[String], String] = (
-        EitherT.fromEither[Future](getSubmissionRequest(request.retrieval.value, request.body)),
-        getPdf(request.body)
-        ).parTupled.flatMap { case (submissionRequest, file) =>
-        EitherT(submissionService.submit(submissionRequest, file, request.retrieval.value))
+        EitherT.fromEither[Future](getSubmissionRequest(request.body)),
+        getPdf(request.body),
+        getAttachments(request.body)
+      ).parTupled.flatMap { case (submissionRequest, file, attachments) =>
+        EitherT(submissionService.submit(submissionRequest, file, attachments, request.retrieval.value))
       }
       result.fold(
         errors => BadRequest(Json.toJson(SubmissionResponse.Failure(errors))),
@@ -75,8 +78,8 @@ class SubmissionController @Inject() (
     }
   }
 
-  private def getSubmissionRequest(owner: String, formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
-    submissionFormProvider.form(owner).bindFromRequest(formData.dataParts).fold(
+  private def getSubmissionRequest(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherNec[String, SubmissionRequest] =
+    submissionFormProvider.form.bindFromRequest(formData.dataParts).fold(
       formWithErrors => Left(NonEmptyChain.fromSeq(formWithErrors.errors.map(error => formatError(error.key, error.format))).get), // always safe
       _.rightNec[String]
     )
@@ -97,6 +100,33 @@ class SubmissionController @Inject() (
           }
       }
     } yield pdf
+
+  private def getAttachments(formData: MultipartFormData[Files.TemporaryFile])(implicit messages: Messages): EitherT[Future, NonEmptyChain[String], Seq[Attachment]] = {
+
+    val attachments = formData.files.filter(_.key == "attachment")
+
+    lazy val duplicateFiles = attachments.flatMap { attachment =>
+      if (attachments.map(_.filename).count(_ == attachment.filename) > 1) Some(attachment.filename) else None
+    }.toSet
+
+    val result = if (attachments.length > 5) {
+      formatError("attachments", Messages("error.maxNumber", 5)).leftNec[Seq[Attachment]]
+    } else if (duplicateFiles.nonEmpty) {
+      formatError("attachments", Messages("error.duplicate-names", duplicateFiles.mkString(", "))).leftNec[Seq[Attachment]]
+    } else {
+      attachments.traverse { tempFile =>
+        if (tempFile.fileSize > 5000000) {
+          formatError(s"attachments/${tempFile.filename}", Messages("error.file-size")).leftNec[Attachment]
+        } else if (!acceptedMimeTypes.contains(tempFile.contentType.getOrElse(""))) {
+          formatError(s"attachments/${tempFile.filename}", Messages("error.mime-type")).leftNec[Attachment]
+        } else {
+          Attachment(tempFile.filename, File(tempFile.ref.path)).rightNec[String]
+        }
+      }
+    }
+
+    EitherT.fromEither[Future](result)
+  }
 
   private def formatError(key: String, message: String): String = s"$key: $message"
 

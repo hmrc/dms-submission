@@ -16,23 +16,6 @@
 
 package models.submission
 
-import play.api.libs.json._
-import play.api.libs.functional.syntax._
-import uk.gov.hmrc.objectstore.client.Path
+import better.files.File
 
-final case class Attachment(location: Path.File, contentMd5: String, owner: String)
-
-object Attachment {
-
-  implicit val reads: Reads[Attachment] = (
-    (__ \ "location").read[String].map(Path.File(_)) ~
-    (__ \ "contentMd5").read[String] ~
-    (__ \ "owner").read[String]
-  )(Attachment(_, _, _))
-
-  implicit val writes: Writes[Attachment] = (
-    (__ \ "location").write[String].contramap[Path.File](_.asUri) ~
-    (__ \ "contentMd5").write[String] ~
-    (__ \ "owner").write[String]
-  )(unlift(Attachment.unapply))
-}
+final case class Attachment(name: String, file: File)
