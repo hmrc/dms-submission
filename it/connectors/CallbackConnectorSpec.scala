@@ -16,7 +16,7 @@
 
 package connectors
 
-import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, equalToJson, post, urlMatching}
+import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, equalTo, equalToJson, post, urlMatching}
 import com.github.tomakehurst.wiremock.http.Fault
 import models.submission.{NotificationRequest, ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
@@ -26,6 +26,7 @@ import play.api.Application
 import play.api.http.Status.{INTERNAL_SERVER_ERROR, OK}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
+import play.api.test.Helpers.AUTHORIZATION
 import util.WireMockHelper
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -37,6 +38,9 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
 
   private lazy val app: Application = {
     GuiceApplicationBuilder()
+      .configure(
+        "internal-auth.token" -> "authToken"
+      )
       .build()
   }
 
@@ -72,6 +76,7 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
 
       server.stubFor(
         post(urlMatching("/callback"))
+          .withHeader(AUTHORIZATION, equalTo("authToken"))
           .withRequestBody(equalToJson(Json.stringify(Json.toJson(request))))
           .willReturn(aResponse().withStatus(OK))
       )
