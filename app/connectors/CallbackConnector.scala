@@ -18,6 +18,7 @@ package connectors
 
 import models.Done
 import models.submission.{NotificationRequest, SubmissionItem}
+import play.api.Configuration
 import play.api.http.Status.OK
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -30,12 +31,16 @@ import scala.util.control.NoStackTrace
 
 @Singleton
 class CallbackConnector @Inject() (
-                                    httpClient: HttpClientV2
+                                    httpClient: HttpClientV2,
+                                    configuration: Configuration
                                   )(implicit ec: ExecutionContext) {
+
+  private val internalAuthToken: String = configuration.get[String]("internal-auth.token")
 
   def notify(submissionItem: SubmissionItem): Future[Done] = {
     val hc = HeaderCarrier()
     httpClient.post(url"${submissionItem.callbackUrl}")(hc)
+      .setHeader("Authorization" -> internalAuthToken)
       .withBody(Json.toJson(createRequest(submissionItem)))
       .execute
       .flatMap { response =>
