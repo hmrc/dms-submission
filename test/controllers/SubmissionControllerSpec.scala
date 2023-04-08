@@ -506,7 +506,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
       responseBody.errors must contain("attachments/attachment.pdf: error.file-size")
     }
 
-    "must return BAD_REQUEST when there are attachments that are not PDFs or JPEGs" in {
+    "must return BAD_REQUEST when there are attachments that are not PDFs, JPEGs, or octet-streams" in {
 
       when(mockStubBehaviour.stubAuth(Some(permission), Retrieval.username))
         .thenReturn(Future.successful(Retrieval.Username("test-service")))

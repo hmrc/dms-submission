@@ -50,7 +50,7 @@ class SubmissionController @Inject() (
   private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 
-  private val acceptedMimeTypes = Set("application/pdf", "image/jpeg")
+  private val acceptedMimeTypes = Set("application/pdf", "image/jpeg", "application/octet-stream")
 
   private val permission = Predicate.Permission(
     resource = Resource(
