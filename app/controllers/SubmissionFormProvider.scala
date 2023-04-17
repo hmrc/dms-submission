@@ -77,7 +77,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   private val validateSubmissionReference: Constraint[String] =
     Constraint { string =>
-      if (string.matches("""^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$""")) {
+      if (string.matches("""^[\dA-Z]{12}$""")) {
         Valid
       } else {
         Invalid("submissionReference.invalid")

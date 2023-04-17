@@ -92,10 +92,6 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
       form.bind(completeData + ("submissionReference" -> "")).value.value.submissionReference mustBe None
     }
 
-    "must bind when the submission reference includes hyphens" in {
-      form.bind(completeData + ("submissionReference" -> "1234-5678-90AB")).value.value.submissionReference.value mustEqual "1234-5678-90AB"
-    }
-
     "must fail if the value is invalid" in {
       val boundField = form.bind(completeData + ("submissionReference" -> "foobar"))("submissionReference")
       boundField.error.value.message mustEqual "submissionReference.invalid"
