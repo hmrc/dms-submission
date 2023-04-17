@@ -43,7 +43,6 @@ class SubmissionService @Inject() (
                                     uuidService: UuidService
                                   )(implicit ec: ExecutionContext) extends Logging {
 
-
   def submit(request: SubmissionRequest, pdf: Pdf, attachments: Seq[Attachment], owner: String)(implicit hc: HeaderCarrier): Future[Either[NonEmptyChain[String], String]] =
     fileService.withWorkingDirectory { workDir =>
       val id = request.submissionReference.getOrElse(submissionReferenceService.random())

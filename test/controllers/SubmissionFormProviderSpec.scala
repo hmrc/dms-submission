@@ -134,7 +134,7 @@ class SubmissionFormProviderSpec extends AnyFreeSpec with Matchers with OptionVa
   "metadata.source" - {
     behave like requiredField("metadata.source")
     behave like nonEmptyField("metadata.source")
-    behave like fieldWithMaxLength("metadata.source", 32)
+    behave like fieldWithMaxLength("metadata.source", 10)
   }
 
   "metadata.submissionMark" - {
