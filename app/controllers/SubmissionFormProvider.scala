@@ -45,7 +45,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
     "store" -> default(boolean, true),
-    "source" -> text.verifying(nonEmpty, maxLength(32)),
+    "source" -> text.verifying(nonEmpty, maxLength(10)),
     "timeOfReceipt" -> text
       .verifying("timeOfReceipt.invalid", string => Try(parseDateTime(string)).isSuccess)
       .transform(parseDateTime(_).toInstant(ZoneOffset.UTC), DateTimeFormatter.ISO_DATE_TIME.format),
@@ -77,7 +77,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
 
   private val validateSubmissionReference: Constraint[String] =
     Constraint { string =>
-      if (string.matches("""^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$""")) {
+      if (string.matches("""^[\dA-Z]{12}$""")) {
         Valid
       } else {
         Invalid("submissionReference.invalid")
