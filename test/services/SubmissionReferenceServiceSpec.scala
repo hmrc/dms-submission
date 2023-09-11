@@ -27,7 +27,7 @@ class SubmissionReferenceServiceSpec extends AnyFreeSpec with Matchers {
 
       val service = new SubmissionReferenceService()
       val ids = Vector.fill(100)(service.random())
-      val pattern = """^[\dA-Z]{4}(-?)[\dA-Z]{4}\1[\dA-Z]{4}$"""
+      val pattern = """^[\dA-Z]{12}$"""
 
       ids.foreach { id =>
         id must fullyMatch regex pattern

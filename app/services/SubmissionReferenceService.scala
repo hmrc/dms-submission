@@ -26,7 +26,5 @@ class SubmissionReferenceService @Inject()() {
     Random.alphanumeric
       .take(12)
       .mkString
-      .grouped(4)
-      .mkString("-")
       .toUpperCase
 }
