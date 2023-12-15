@@ -18,6 +18,7 @@ package controllers
 
 import cats.implicits._
 import audit.{AuditService, SdesCallbackEvent}
+import controllers.SdesCallbackController.SubmissionLockedException
 import logging.Logging
 import models.Done
 import models.sdes.{NotificationCallback, NotificationType}
@@ -93,6 +94,10 @@ class SdesCallbackController @Inject() (
       auditService.auditSdesCallback(event)
       Done
     }
+
+}
+
+object SdesCallbackController {
 
   final case class SubmissionLockedException(sdesCorrelationId: String) extends Throwable with NoStackTrace {
     override def getMessage: String = s"Item with sdesCorrelationId $sdesCorrelationId was locked"

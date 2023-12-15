@@ -212,6 +212,7 @@ class SubmissionItemRepository @Inject() (
 
     import SubmissionItemStatus._
 
+    @annotation.nowarn("msg=possible missing interpolator")
     def countStatus(status: SubmissionItemStatus): JsObject = Json.obj(
       "$sum" -> Json.obj(
         "$cond" -> Json.obj(

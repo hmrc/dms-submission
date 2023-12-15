@@ -20,7 +20,7 @@ import connectors.SdesConnector
 import logging.Logging
 import models.Done
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
-import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
 import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier

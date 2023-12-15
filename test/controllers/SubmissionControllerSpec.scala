@@ -169,7 +169,9 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       fileCaptor.getValue.file.contentAsString mustEqual File(tempFile.path).contentAsString
 
-      val Seq(attachment1, attachment2) = attachmentCaptor.getValue
+      val attachments = attachmentCaptor.getValue
+      val attachment1 = attachments.head
+      val attachment2 = attachments(1)
       attachment1.file.contentAsString mustEqual File(expectedAttachment1.path).contentAsString
       attachment2.file.contentAsString mustEqual File(expectedAttachment2.path).contentAsString
     }
@@ -281,7 +283,7 @@ class SubmissionControllerSpec extends AnyFreeSpec with Matchers with ScalaFutur
 
       status(result) mustEqual BAD_REQUEST
       val responseBody = contentAsJson(result).as[SubmissionResponse.Failure]
-      responseBody.errors must contain allOf(
+      responseBody.errors must contain.allOf(
         "callbackUrl: This field is required",
         "form: This field is required"
       )
