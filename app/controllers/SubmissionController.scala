@@ -20,7 +20,6 @@ import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
 import cats.implicits._
 import com.codahale.metrics.{MetricRegistry, Timer}
-import com.kenshoo.play.metrics.Metrics
 import models.Pdf
 import models.submission.{Attachment, SubmissionRequest, SubmissionResponse}
 import play.api.i18n.{I18nSupport, Messages}
@@ -44,10 +43,9 @@ class SubmissionController @Inject() (
                                        submissionFormProvider: SubmissionFormProvider,
                                        auth: BackendAuthComponents,
                                        clock: Clock,
-                                       metrics: Metrics
+                                       metricRegistry: MetricRegistry
                                      )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
 
-  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 
   private val acceptedMimeTypes = Set("application/pdf", "image/jpeg", "application/octet-stream")

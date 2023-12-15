@@ -18,8 +18,8 @@ package controllers
 
 import audit.{AuditService, RetryRequestEvent}
 import cats.implicits.{toFlatMapOps, toFunctorOps}
+import models.Done
 import models.submission.{SubmissionItem, SubmissionItemStatus}
-import models.{Done, SubmissionSummary}
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
@@ -60,14 +60,14 @@ class SubmissionAdminController @Inject()(
             offset: Int
           ): Action[AnyContent] = {
 
-    authorised(owner, read).async { implicit request =>
+    authorised(owner, read).async {
       submissionItemRepository.list(owner, status, created, limit, offset)
         .map(listResult => Ok(Json.toJson(listResult)))
     }
   }
 
   def show(owner: String, id: String): Action[AnyContent] =
-    authorised(owner, read).async { implicit request =>
+    authorised(owner, read).async {
       submissionItemRepository.get(owner, id).map {
         _.map(item => Ok(Json.toJson(item)))
           .getOrElse(NotFound)
@@ -84,7 +84,7 @@ class SubmissionAdminController @Inject()(
       }
   }
 
-  def dailySummaries(owner: String): Action[AnyContent] = authorised(owner, read).async { implicit request =>
+  def dailySummaries(owner: String): Action[AnyContent] = authorised(owner, read).async {
     submissionItemRepository
       .dailySummaries(owner)
       .map(summaries => Ok(Json.obj("summaries" -> summaries)))

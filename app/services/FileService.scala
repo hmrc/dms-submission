@@ -19,7 +19,6 @@ package services
 import better.files.File
 import better.files.File.VisitOptions
 import com.codahale.metrics.{Gauge, MetricRegistry}
-import com.kenshoo.play.metrics.Metrics
 import config.FileSystemExecutionContext
 import logging.Logging
 import play.api.Configuration
@@ -36,13 +35,12 @@ class FileService @Inject() (
                               objectStoreClient: PlayObjectStoreClient,
                               configuration: Configuration,
                               clock: Clock,
-                              metrics: Metrics
+                              metricRegistry: MetricRegistry
                             )(implicit fileSystemExecutionContext: FileSystemExecutionContext) extends Logging {
 
   private val tmpDir: File = File(configuration.get[String]("play.temporaryFile.dir"))
     .createDirectories()
 
-  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   metricRegistry.register("temporary-directory.size", new DirectorySizeGauge(tmpDir))
 
   def withWorkingDirectory[A](f: File => Future[A])(implicit ec: ExecutionContext): Future[A] =

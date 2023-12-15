@@ -16,8 +16,7 @@
 
 package models
 
-import models.submission.SubmissionItem
-import play.api.libs.json.{Json, OFormat, OWrites, Reads}
+import play.api.libs.json.{Json, OFormat}
 
 final case class ListResult (
                             totalCount: Int,
