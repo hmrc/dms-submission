@@ -16,7 +16,7 @@
 
 package config
 
-import com.kenshoo.play.metrics.Metrics
+import com.codahale.metrics.MetricRegistry
 import models.submission.SubmissionItemStatus
 import play.api.Configuration
 import repositories.SubmissionItemRepository
@@ -31,7 +31,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class MetricOrchestratorProvider @Inject() (
                                              lockRepository: MongoLockRepository,
                                              metricRepository: MetricRepository,
-                                             metrics: Metrics,
+                                             metricRegistry: MetricRegistry,
                                              submissionItemRepository: SubmissionItemRepository,
                                              configuration: Configuration
                                            ) extends Provider[MetricOrchestrator] {
@@ -39,8 +39,6 @@ class MetricOrchestratorProvider @Inject() (
   private val lockTtl: Duration = configuration.get[Duration]("workers.metric-orchestrator-worker.lock-ttl")
 
   private val lockService: LockService = LockService(lockRepository, lockId = "metrix-orchestrator", ttl = lockTtl)
-
-  private val metricRegistry = metrics.defaultRegistry
 
   private val source = new MetricSource {
     override def metrics(implicit ec: ExecutionContext): Future[Map[String, Int]] =

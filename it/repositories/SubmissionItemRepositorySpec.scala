@@ -47,7 +47,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     clock.set(now)
   }
 
-  override protected def repository = new SubmissionItemRepository(
+  override protected val repository = new SubmissionItemRepository(
     mongoComponent = mongoComponent,
     clock = clock,
     configuration = Configuration("lock-ttl" -> 30)
@@ -370,7 +370,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       updatedItem2.lockedAt mustBe None
     }
 
-    "must locked item while the provided function runs" in {
+    "must lock item while the provided function runs" in {
 
       val promise: Promise[SubmissionItem] = Promise()
       val item = randomItem
@@ -381,6 +381,9 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val runningFuture = repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { _ =>
         promise.future
       }
+
+      // We need this as there is a race condition between when the item is locked and when we request the locked item below
+      Thread.sleep(100)
 
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
       promise.success(item.copy(status = SubmissionItemStatus.Processed))
@@ -397,6 +400,9 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val runningFuture = repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { _ =>
         promise.future
       }
+
+      // We need this as there is a race condition between when the item is locked and when we request the locked item below
+      Thread.sleep(100)
 
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
       promise.failure(new RuntimeException())

@@ -17,7 +17,6 @@
 package services
 
 import com.codahale.metrics.{MetricRegistry, Timer}
-import com.kenshoo.play.metrics.Metrics
 import connectors.CallbackConnector
 import logging.Logging
 import models.Done
@@ -34,10 +33,9 @@ class CallbackService @Inject() (
                                   callbackConnector: CallbackConnector,
                                   repository: SubmissionItemRepository,
                                   clock: Clock,
-                                  metrics: Metrics
+                                  metricRegistry: MetricRegistry
                                 )(implicit ec: ExecutionContext) extends Logging {
 
-  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("complete-submission.timer")
 
   def notifyOldestProcessedItem(): Future[QueryResult] = {
