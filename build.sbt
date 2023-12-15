@@ -1,13 +1,15 @@
-import uk.gov.hmrc.DefaultBuildSettings.{integrationTestSettings, targetJvm}
 import play.sbt.routes.RoutesKeys
+import uk.gov.hmrc.DefaultBuildSettings
+import uk.gov.hmrc.DefaultBuildSettings.targetJvm
+
+ThisBuild / majorVersion := 0
+ThisBuild / scalaVersion := "2.13.12"
+ThisBuild / targetJvm := "jvm-11"
 
 lazy val microservice = Project("dms-submission", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin, BuildInfoPlugin)
   .disablePlugins(JUnitXmlReportPlugin)
   .settings(
-    majorVersion        := 0,
-    scalaVersion        := "2.13.12",
-    targetJvm           := "jvm-11",
     libraryDependencies ++= AppDependencies.compile ++ AppDependencies.test,
     // https://www.scala-lang.org/2021/01/12/configuring-and-suppressing-warnings.html
     // suppress warnings in generated routes files
@@ -21,19 +23,21 @@ lazy val microservice = Project("dms-submission", file("."))
       "models._",
       "models.submission._",
       "java.time.LocalDate"
-    )
+    ),
+    CodeCoverageSettings.settings,
+    resolvers += Resolver.jcenterRepo,
+    inConfig(Test)(testSettings),
   )
-  .settings(inConfig(Test)(testSettings): _*)
-  .configs(IntegrationTest)
-  .settings(integrationTestSettings(): _*)
-  .settings(inConfig(IntegrationTest)(itSettings): _*)
-  .settings(resolvers += Resolver.jcenterRepo)
-  .settings(CodeCoverageSettings.settings: _*)
+
+lazy val it = project
+  .enablePlugins(PlayScala)
+  .dependsOn(microservice % "test->test") // the "test->test" allows reusing test code and test dependencies
+  .settings(
+    DefaultBuildSettings.itSettings,
+    libraryDependencies ++= AppDependencies.integration,
+    Compile / unmanagedResourceDirectories += baseDirectory.value / "test-utils" / "resources"
+  )
 
 lazy val testSettings: Seq[Def.Setting[_]] = Seq(
-  unmanagedResourceDirectories += baseDirectory.value / "test-utils" / "resources"
-)
-
-lazy val itSettings: Seq[Def.Setting[_]] = Seq(
   unmanagedResourceDirectories += baseDirectory.value / "test-utils" / "resources"
 )

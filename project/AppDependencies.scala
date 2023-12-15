@@ -18,10 +18,12 @@ object AppDependencies {
     "org.apache.pdfbox"       %  "pdfbox"                       % "2.0.27"
   )
 
-  val test = Seq(
+  val test: Seq[ModuleID] = Seq(
     "uk.gov.hmrc"             %% "bootstrap-test-play-30"        % bootstrapVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-test-play-30"       % hmrcMongoVersion,
     "org.typelevel"           %% "cats-effect-testkit"           % "3.4.0",
     "org.typelevel"           %% "cats-effect-testing-scalatest" % "1.5.0"
-  ).map(_ % "test, it")
+  ).map(_ % Test)
+
+  val integration = Seq.empty[ModuleID]
 }
