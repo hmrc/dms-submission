@@ -44,10 +44,8 @@ class SubmissionController @Inject() (
                                        submissionFormProvider: SubmissionFormProvider,
                                        auth: BackendAuthComponents,
                                        clock: Clock,
-                                       metrics: Metrics
+                                       metricRegistry: MetricRegistry
                                      )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
-
-  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 

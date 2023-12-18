@@ -34,13 +34,11 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class FileService @Inject() (
                               configuration: Configuration,
-                              metrics: Metrics
+                              metricRegistry: MetricRegistry
                             )(implicit fileSystemExecutionContext: FileSystemExecutionContext) extends Logging {
 
   private val tmpDir: File = File(configuration.get[String]("play.temporaryFile.dir"))
     .createDirectories()
-
-  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   metricRegistry.register("temporary-directory.size", new DirectorySizeGauge(tmpDir))
 
