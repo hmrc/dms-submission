@@ -23,6 +23,7 @@ import config.FileSystemExecutionContext
 import logging.Logging
 import play.api.Configuration
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import java.io.IOException
 import java.nio.file.Files
@@ -32,14 +33,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class FileService @Inject() (
-                              objectStoreClient: PlayObjectStoreClient,
                               configuration: Configuration,
-                              clock: Clock,
-                              metricRegistry: MetricRegistry
+                              metrics: Metrics
                             )(implicit fileSystemExecutionContext: FileSystemExecutionContext) extends Logging {
 
   private val tmpDir: File = File(configuration.get[String]("play.temporaryFile.dir"))
     .createDirectories()
+
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   metricRegistry.register("temporary-directory.size", new DirectorySizeGauge(tmpDir))
 

@@ -22,6 +22,7 @@ import logging.Logging
 import models.Done
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
 import repositories.SubmissionItemRepository
+import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
@@ -33,9 +34,10 @@ class CallbackService @Inject() (
                                   callbackConnector: CallbackConnector,
                                   repository: SubmissionItemRepository,
                                   clock: Clock,
-                                  metricRegistry: MetricRegistry
+                                  metrics: Metrics
                                 )(implicit ec: ExecutionContext) extends Logging {
 
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
   private val timer: Timer = metricRegistry.timer("complete-submission.timer")
 
   def notifyOldestProcessedItem(): Future[QueryResult] = {

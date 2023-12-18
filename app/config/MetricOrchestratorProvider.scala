@@ -22,6 +22,7 @@ import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
 import uk.gov.hmrc.mongo.metrix.{MetricOrchestrator, MetricRepository, MetricSource}
+import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import javax.inject.{Inject, Provider, Singleton}
 import scala.concurrent.duration.Duration
@@ -31,7 +32,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class MetricOrchestratorProvider @Inject() (
                                              lockRepository: MongoLockRepository,
                                              metricRepository: MetricRepository,
-                                             metricRegistry: MetricRegistry,
+                                             metrics: Metrics,
                                              submissionItemRepository: SubmissionItemRepository,
                                              configuration: Configuration
                                            ) extends Provider[MetricOrchestrator] {
@@ -39,6 +40,8 @@ class MetricOrchestratorProvider @Inject() (
   private val lockTtl: Duration = configuration.get[Duration]("workers.metric-orchestrator-worker.lock-ttl")
 
   private val lockService: LockService = LockService(lockRepository, lockId = "metrix-orchestrator", ttl = lockTtl)
+
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   private val source = new MetricSource {
     override def metrics(implicit ec: ExecutionContext): Future[Map[String, Int]] =
