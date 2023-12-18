@@ -29,6 +29,7 @@ import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.{PdfService, SubmissionService}
 import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
+import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import java.io.IOException
 import java.time.{Clock, Duration}
@@ -43,8 +44,10 @@ class SubmissionController @Inject() (
                                        submissionFormProvider: SubmissionFormProvider,
                                        auth: BackendAuthComponents,
                                        clock: Clock,
-                                       metricRegistry: MetricRegistry
+                                       metrics: Metrics
                                      )(implicit ec: ExecutionContext) extends BackendBaseController with I18nSupport {
+
+  private val metricRegistry: MetricRegistry = metrics.defaultRegistry
 
   private val timer: Timer = metricRegistry.timer("submission-response.timer")
 
