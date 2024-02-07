@@ -16,26 +16,30 @@
 
 package worker
 
+import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
-import services.SchedulerService
 import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class MetricOrchestratorWorker @Inject()(
                                           configuration: Configuration,
-                                          schedulerService: SchedulerService,
                                           metricOrchestrator: MetricOrchestrator,
-                                          lifecycle: ApplicationLifecycle
+                                          lifecycle: ApplicationLifecycle,
+                                          actorSystem: ActorSystem
                                         )(implicit ec: ExecutionContext) {
+
+  private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.metric-orchestrator-worker.interval")
 
-  private val (_, cancel) = schedulerService.schedule(interval)(metricOrchestrator.attemptMetricRefresh())
+  private val cancel = scheduler.scheduleWithFixedDelay(0.seconds, interval) { () =>
+    metricOrchestrator.attemptMetricRefresh()
+  }
 
-  lifecycle.addStopHook(cancel)
+  lifecycle.addStopHook(() => Future.successful(cancel.cancel()))
 }
