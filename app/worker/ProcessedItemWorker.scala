@@ -16,25 +16,31 @@
 
 package worker
 
+import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
-import services.{CallbackService, SchedulerService}
+import services.CallbackService
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 
 @Singleton
 class ProcessedItemWorker @Inject()(
                                      configuration: Configuration,
                                      callbackService: CallbackService,
-                                     schedulerService: SchedulerService,
-                                     lifecycle: ApplicationLifecycle
-                                   ) {
+                                     lifecycle: ApplicationLifecycle,
+                                     actorSystem: ActorSystem
+                                   )(implicit ec: ExecutionContext) {
+
+  private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.processed-item-worker.interval")
   private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
 
-  private val (_, cancel) = schedulerService.schedule(interval, initialDelay)(callbackService.notifyProcessedItems())
+  private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
+    callbackService.notifyProcessedItems()
+  }
 
-  lifecycle.addStopHook(cancel)
+  lifecycle.addStopHook(() => Future.successful(cancel.cancel()))
 }
