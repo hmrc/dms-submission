@@ -16,21 +16,22 @@
 
 package services
 
-import cats.effect.IO
-import cats.effect.unsafe.IORuntime
-import fs2.Stream
+import org.apache.pekko.actor.{ActorSystem, Scheduler}
+import org.apache.pekko.pattern
 import play.api.Configuration
-import services.RetryService.BackoffStrategy
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 @Singleton
 class RetryService @Inject() (
-                               configuration: Configuration
-                             )(implicit runtime: IORuntime) {
+                               configuration: Configuration,
+                               actorSystem: ActorSystem
+                             )(implicit ec: ExecutionContext) {
+
+  private implicit val scheduler: Scheduler = actorSystem.scheduler
 
   private val defaultDelay: FiniteDuration =
     configuration.get[FiniteDuration]("retry.delay")
@@ -41,18 +42,11 @@ class RetryService @Inject() (
   def retry[A](
                 f: => Future[A],
                 delay: FiniteDuration = defaultDelay,
-                backoff: FiniteDuration => FiniteDuration = BackoffStrategy.constant,
                 maxAttempts: Int = defaultMaxAttempts,
                 retriable: Throwable => Boolean = NonFatal.apply
               ): Future[A] =
-    Stream.retry[IO, A](IO.fromFuture(IO(f)), delay, backoff, maxAttempts, retriable)
-      .compile.lastOrError.unsafeToFuture()
-}
-
-object RetryService {
-
-  object BackoffStrategy {
-    val constant: FiniteDuration => FiniteDuration = identity
-    val exponential: FiniteDuration => FiniteDuration = _ * 2
-  }
+    f.recoverWith {
+      case t if retriable(t) =>
+        pattern.retry(() => f, maxAttempts - 2, delay)
+    }
 }

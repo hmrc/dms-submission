@@ -22,6 +22,7 @@ import org.scalatest.matchers.must.Matchers
 import play.api.inject.guice.GuiceApplicationBuilder
 
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class RetryServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
@@ -44,12 +45,12 @@ class RetryServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
       var times = 0
 
-      def future: Future[String] = {
+      def future: Future[String] = Future {
         times += 1
         if (times < 2) {
-          Future.failed(new RuntimeException())
+          throw new RuntimeException()
         } else {
-          Future.successful("foobar")
+          "foobar"
         }
       }
 
@@ -61,9 +62,9 @@ class RetryServiceSpec extends AnyFreeSpec with Matchers with ScalaFutures {
 
       var times = 0
 
-      def future: Future[String] = {
+      def future: Future[String] = Future {
         times += 1
-        Future.failed(new RuntimeException())
+        throw new RuntimeException()
       }
 
       service.retry(future).failed.futureValue
