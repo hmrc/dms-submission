@@ -90,6 +90,12 @@ class SubmissionAdminController @Inject()(
       .map(summaries => Ok(Json.obj("summaries" -> summaries)))
   }
 
+  def listServices: Action[AnyContent] = Action.async {
+    submissionItemRepository.owners.map { services =>
+      Ok(Json.obj("services" -> services))
+    }
+  }
+
   private def auditRetryRequest(item: SubmissionItem, username: Username)(implicit hc: HeaderCarrier): Future[Done] =
     Future.successful {
       val event = RetryRequestEvent(
