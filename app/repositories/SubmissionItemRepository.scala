@@ -25,6 +25,7 @@ import play.api.libs.json.{JsObject, Json}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+import uk.gov.hmrc.play.http.logging.Mdc
 
 import java.time.{Clock, Duration, LocalDate, ZoneOffset}
 import java.util.concurrent.TimeUnit
@@ -67,6 +68,11 @@ class SubmissionItemRepository @Inject() (
       Indexes.ascending("status"),
       IndexOptions()
         .name("statusIdx")
+    ),
+    IndexModel(
+      Indexes.ascending("owner"),
+      IndexOptions()
+        .name("ownerIdx")
     )
   ),
   extraCodecs =
@@ -80,9 +86,11 @@ class SubmissionItemRepository @Inject() (
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
 
   def insert(item: SubmissionItem): Future[Done] =
-    collection.insertOne(item.copy(lastUpdated = clock.instant()))
-      .toFuture()
-      .map(_ => Done)
+    Mdc.preservingMdc {
+      collection.insertOne(item.copy(lastUpdated = clock.instant()))
+        .toFuture()
+        .map(_ => Done)
+    }
 
   def update(owner: String, id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] =
     update(Filters.and(
@@ -102,33 +110,41 @@ class SubmissionItemRepository @Inject() (
         .getOrElse(Updates.unset("failureReason"))
     )
 
-    collection.findOneAndUpdate(
-      filter = filter,
-      update = Updates.combine(updates: _*),
-      options = FindOneAndUpdateOptions()
-        .returnDocument(ReturnDocument.AFTER)
-        .upsert(false)
-    ).headOption().flatMap {
-      _.map(Future.successful)
-        .getOrElse(Future.failed(SubmissionItemRepository.NothingToUpdateException))
+    Mdc.preservingMdc {
+      collection.findOneAndUpdate(
+        filter = filter,
+        update = Updates.combine(updates: _*),
+        options = FindOneAndUpdateOptions()
+          .returnDocument(ReturnDocument.AFTER)
+          .upsert(false)
+      ).headOption().flatMap {
+        _.map(Future.successful)
+          .getOrElse(Future.failed(SubmissionItemRepository.NothingToUpdateException))
+      }
     }
   }
 
   def remove(owner: String, id: String): Future[Done] =
-    collection.findOneAndDelete(Filters.and(
-      Filters.equal("id", id),
-      Filters.equal("owner", owner)
-    )).toFuture().map(_ => Done)
+    Mdc.preservingMdc {
+      collection.findOneAndDelete(Filters.and(
+        Filters.equal("id", id),
+        Filters.equal("owner", owner)
+      )).toFuture().map(_ => Done)
+    }
 
   def get(owner: String, id: String): Future[Option[SubmissionItem]] =
-    collection.find(Filters.and(
-      Filters.equal("id", id),
-      Filters.equal("owner", owner)
-    )).headOption()
+    Mdc.preservingMdc {
+      collection.find(Filters.and(
+        Filters.equal("id", id),
+        Filters.equal("owner", owner)
+      )).headOption()
+    }
 
   def get(sdesCorrelationId: String): Future[Option[SubmissionItem]] =
-    collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
-      .headOption()
+    Mdc.preservingMdc {
+      collection.find(Filters.equal("sdesCorrelationId", sdesCorrelationId))
+        .headOption()
+    }
 
   def list(owner: String,
            status: Option[SubmissionItemStatus] = None,
@@ -147,33 +163,42 @@ class SubmissionItemRepository @Inject() (
     }
     val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
 
-    val findCount = Json.obj(
-      "$let" -> Json.obj(
-        "vars" -> Json.obj(
-          "countValue" -> Json.obj(
-            "$arrayElemAt" -> Json.arr("$totalCount", 0)
-          )
-        ),
-        "in" -> "$$countValue.count"
+    val findCount =
+      Json.obj(
+        "$ifNull" -> Json.arr(
+          Json.obj(
+            "$let" -> Json.obj(
+              "vars" -> Json.obj(
+                "countValue" -> Json.obj(
+                  "$arrayElemAt" -> Json.arr("$totalCount", 0)
+                )
+              ),
+              "in" -> "$$countValue.count"
+            )
+          ), 0
+        )
       )
-    )
 
-    collection.aggregate[ListResult](List(
-      Aggregates.`match`(filters),
-      Aggregates.sort(Sorts.descending("created")),
-      Aggregates.facet(
-        Facet("totalCount", Aggregates.count()),
-        Facet("summaries", Aggregates.skip(offset), Aggregates.limit(limit))
-      ),
-      Aggregates.project(Json.obj(
-        "totalCount" -> findCount,
-        "summaries" -> "$summaries"
-      ).toDocument())
-    )).head()
+    Mdc.preservingMdc {
+      collection.aggregate[ListResult](List(
+        Aggregates.`match`(filters),
+        Aggregates.sort(Sorts.descending("created")),
+        Aggregates.facet(
+          Facet("totalCount", Aggregates.count()),
+          Facet("summaries", Aggregates.skip(offset), Aggregates.limit(limit))
+        ),
+        Aggregates.project(Json.obj(
+          "totalCount" -> findCount,
+          "summaries" -> "$summaries"
+        ).toDocument())
+      )).head()
+    }
   }
 
   def countByStatus(status: SubmissionItemStatus): Future[Long] =
-    collection.countDocuments(Filters.equal("status", status)).toFuture()
+    Mdc.preservingMdc {
+      collection.countDocuments(Filters.equal("status", status)).toFuture()
+    }
 
   def lockAndReplaceOldestItemByStatus(status: SubmissionItemStatus)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] =
     lockAndReplace(
@@ -181,8 +206,8 @@ class SubmissionItemRepository @Inject() (
       sort = Sorts.ascending("lastUpdated")
     )(f)
 
-  private def lockAndReplace(filter: Bson, sort: Bson)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] =
-    collection.findOneAndUpdate(
+  private def lockAndReplace(filter: Bson, sort: Bson)(f: SubmissionItem => Future[SubmissionItem]): Future[QueryResult] = {
+    Mdc.preservingMdc(collection.findOneAndUpdate(
       filter = Filters.and(
         filter,
         Filters.or(
@@ -192,21 +217,22 @@ class SubmissionItemRepository @Inject() (
       ),
       update = Updates.set("lockedAt", clock.instant()),
       options = FindOneAndUpdateOptions().sort(sort)
-    ).headOption().flatMap {
+    ).headOption()).flatMap {
       _.map { item =>
         f(item)
           .flatMap { updatedItem =>
-            collection.replaceOne(
+            Mdc.preservingMdc(collection.replaceOne(
               filter = Filters.equal("sdesCorrelationId", item.sdesCorrelationId),
               replacement = updatedItem.copy(
                 lastUpdated = clock.instant(),
                 lockedAt = None
               )
-            ).toFuture()
+            ).toFuture())
           }
           .map(_ => QueryResult.Found)
       }.getOrElse(Future.successful(QueryResult.NotFound))
     }
+  }
 
   def dailySummaries(owner: String): Future[Seq[DailySummary]] = {
 
@@ -241,11 +267,18 @@ class SubmissionItemRepository @Inject() (
       )
     )
 
-    collection.aggregate[DailySummary](List(
-      Aggregates.`match`(Filters.eq("owner", owner)),
-      groupExpression.toDocument()
-    )).toFuture()
+    Mdc.preservingMdc {
+      collection.aggregate[DailySummary](List(
+        Aggregates.`match`(Filters.eq("owner", owner)),
+        groupExpression.toDocument()
+      )).toFuture()
+    }
   }
+
+  def owners: Future[Set[String]] =
+    Mdc.preservingMdc {
+      collection.distinct[String]("owner").toFuture().map(_.toSet)
+    }
 }
 
 object SubmissionItemRepository {
