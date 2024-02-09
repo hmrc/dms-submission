@@ -84,6 +84,7 @@ class SubmissionItemRepository @Inject() (
   ) {
 
   private val lockTtl: Duration = Duration.ofSeconds(configuration.get[Int]("lock-ttl"))
+  private val timeoutDuration: Duration = configuration.get[Duration]("item-timeout")
 
   def insert(item: SubmissionItem): Future[Done] =
     Mdc.preservingMdc {
@@ -279,6 +280,26 @@ class SubmissionItemRepository @Inject() (
     Mdc.preservingMdc {
       collection.distinct[String]("owner").toFuture().map(_.toSet)
     }
+
+  def failTimedOutItems: Future[Long] = {
+
+    val filter = Filters.and(
+      Filters.eq("status", SubmissionItemStatus.Forwarded),
+      Filters.lte("lastUpdated", clock.instant().minus(timeoutDuration))
+    )
+
+    val updates = Updates.combine(
+      Updates.set("status", SubmissionItemStatus.Failed),
+      Updates.set("lastUpdated", clock.instant()),
+      Updates.set("failureReason", s"Did not receive a callback from SDES within $timeoutDuration")
+    )
+
+    Mdc.preservingMdc {
+      collection.updateMany(filter, updates)
+        .map(_.getModifiedCount)
+        .head()
+    }
+  }
 }
 
 object SubmissionItemRepository {

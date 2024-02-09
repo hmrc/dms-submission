@@ -57,7 +57,10 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
   override lazy val app: Application =
     GuiceApplicationBuilder()
-      .configure("lock-ttl" -> 30)
+      .configure(
+        "lock-ttl" -> 30,
+        "item-timeout" -> "24h"
+      )
       .overrides(
         bind[MongoComponent].toInstance(mongoComponent),
         bind[Clock].toInstance(clock)
@@ -563,6 +566,41 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
 
     mustPreserveMdc(repository.owners)
+  }
+
+  "failTimedOutItems" - {
+
+    val yesterday = now.minus(1, ChronoUnit.DAYS)
+
+    "must fail any items in a forwarded state when they haven't been updated since the timeout time" in {
+
+      clock.set(yesterday)
+      val item1 = randomItem.copy(status = SubmissionItemStatus.Forwarded, lastUpdated = clock.instant())
+      val item2 = randomItem.copy(status = SubmissionItemStatus.Forwarded, lastUpdated = clock.instant())
+      val item3 = randomItem.copy(status = SubmissionItemStatus.Completed, lastUpdated = clock.instant())
+      List(item1, item2, item3).traverse(repository.insert).futureValue
+
+      clock.set(now)
+      val item4 = randomItem.copy(status = SubmissionItemStatus.Forwarded, lastUpdated = clock.instant())
+      repository.insert(item4).futureValue
+
+      repository.failTimedOutItems.futureValue mustEqual 2
+
+      repository.get(item3.sdesCorrelationId).futureValue.value mustEqual item3
+      repository.get(item4.sdesCorrelationId).futureValue.value mustEqual item4
+
+      val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
+      updatedItem1.status mustEqual SubmissionItemStatus.Failed
+      updatedItem1.lastUpdated mustEqual clock.instant()
+      updatedItem1.failureReason.value mustEqual "Did not receive a callback from SDES within PT24H"
+
+      val updatedItem2 = repository.get(item2.sdesCorrelationId).futureValue.value
+      updatedItem2.status mustEqual SubmissionItemStatus.Failed
+      updatedItem2.lastUpdated mustEqual clock.instant()
+      updatedItem2.failureReason.value mustEqual "Did not receive a callback from SDES within PT24H"
+    }
+
+    mustPreserveMdc(repository.failTimedOutItems)
   }
 
   private def randomItem: SubmissionItem = item.copy(

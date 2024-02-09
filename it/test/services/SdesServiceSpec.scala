@@ -28,10 +28,10 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
-import play.api.Configuration
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import repositories.SubmissionItemRepository
+import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import uk.gov.hmrc.objectstore.client.Path
 import util.MutableClock
@@ -39,7 +39,6 @@ import util.MutableClock
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant}
 import java.util.UUID
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class SdesServiceSpec extends AnyFreeSpec with Matchers
@@ -49,28 +48,28 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
 
   private val clock: Clock = MutableClock(Instant.now())
   private val mockSdesConnector: SdesConnector = mock[SdesConnector]
-  override protected lazy val repository = new SubmissionItemRepository(
-    mongoComponent = mongoComponent,
-    clock = clock,
-    configuration = Configuration("lock-ttl" -> 30)
-  )
 
   override def beforeEach(): Unit = {
     super.beforeEach()
     Mockito.reset(mockSdesConnector)
   }
 
-  private val app = GuiceApplicationBuilder()
+  private lazy val app = GuiceApplicationBuilder()
     .configure(
       "service.sdes.information-type" -> "information-type",
       "service.sdes.recipient-or-sender" -> "recipient-or-sender",
-      "services.sdes.object-store-location-prefix" -> "http://prefix/"
+      "services.sdes.object-store-location-prefix" -> "http://prefix/",
+      "lock-ttl" -> 30
     )
     .overrides(
       bind[SdesConnector].toInstance(mockSdesConnector),
-      bind[SubmissionItemRepository].toInstance(repository)
+      bind[MongoComponent].toInstance(mongoComponent),
+      bind[Clock].toInstance(clock)
     )
     .build()
+
+  override protected lazy val repository: SubmissionItemRepository =
+    app.injector.instanceOf[SubmissionItemRepository]
 
   private val service = app.injector.instanceOf[SdesService]
 

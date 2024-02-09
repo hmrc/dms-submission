@@ -22,20 +22,19 @@ import models.submission.{ObjectSummary, QueryResult, SubmissionItem, Submission
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, times, verify, when}
-import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
-import play.api.Configuration
+import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import repositories.SubmissionItemRepository
+import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.MutableClock
-import play.api.inject.bind
 
 import java.time.temporal.ChronoUnit
-import scala.concurrent.ExecutionContext.Implicits.global
 import java.time.{Clock, Instant}
 import java.util.UUID
 import scala.concurrent.Future
@@ -47,25 +46,28 @@ class CallbackServiceSpec extends AnyFreeSpec with Matchers
 
   private val clock: Clock = MutableClock(Instant.now().truncatedTo(ChronoUnit.MILLIS))
   private val mockCallbackConnector: CallbackConnector = mock[CallbackConnector]
-  override protected lazy val repository = new SubmissionItemRepository(
-    mongoComponent = mongoComponent,
-    clock = clock,
-    configuration = Configuration("lock-ttl" -> 30)
-  )
 
   override def beforeEach(): Unit = {
     super.beforeEach()
     Mockito.reset(mockCallbackConnector)
   }
 
-  private val app = GuiceApplicationBuilder()
+  private lazy val app = GuiceApplicationBuilder()
+    .configure(
+      "lock-ttl" -> 30
+    )
     .overrides(
       bind[CallbackConnector].toInstance(mockCallbackConnector),
-      bind[SubmissionItemRepository].toInstance(repository)
+      bind[MongoComponent].toInstance(mongoComponent),
+      bind[Clock].toInstance(clock)
     )
     .build()
 
-  private val service = app.injector.instanceOf[CallbackService]
+  override protected lazy val repository: SubmissionItemRepository =
+    app.injector.instanceOf[SubmissionItemRepository]
+
+  private lazy val service =
+    app.injector.instanceOf[CallbackService]
 
   private def randomItem = SubmissionItem(
     id = UUID.randomUUID().toString,
