@@ -323,4 +323,33 @@ class SubmissionAdminControllerSpec
       verify(mockSubmissionItemRepository, never()).dailySummaries(any())
     }
   }
+
+  "listServices" - {
+
+    "must return a list of services for an authorised user" in {
+
+      val services = Set("service1", "service2")
+      when(mockSubmissionItemRepository.owners).thenReturn(Future.successful(services))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.listServices)
+
+      val result = route(app, request).value
+
+      status(result) mustEqual OK
+
+      val expectedResult = Json.obj("services" -> services)
+      contentAsJson(result) mustEqual Json.toJson(expectedResult)
+    }
+
+    "must fail when the call to the repository fails" in {
+
+      when(mockSubmissionItemRepository.owners).thenReturn(Future.failed(new RuntimeException()))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.listServices)
+
+      route(app, request).value.failed.futureValue
+    }
+  }
 }

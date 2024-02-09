@@ -19,22 +19,29 @@ package repositories
 import cats.implicits.toTraverseOps
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, SubmissionSummary}
+import org.scalactic.source.Position
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.{BeforeAndAfterEach, OptionValues}
-import play.api.Configuration
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
+import org.slf4j.MDC
+import play.api.Application
+import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
+import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import util.MutableClock
 
 import java.time.temporal.ChronoUnit
-import java.time.{Duration, Instant, LocalDate}
+import java.time.{Clock, Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class SubmissionItemRepositorySpec extends AnyFreeSpec
   with Matchers with OptionValues
+  with GuiceOneAppPerSuite
   with DefaultPlayMongoRepositorySupport[SubmissionItem]
   with ScalaFutures with IntegrationPatience
   with BeforeAndAfterEach {
@@ -45,13 +52,20 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
   override def beforeEach(): Unit = {
     super.beforeEach()
     clock.set(now)
+    MDC.clear()
   }
 
-  override protected val repository = new SubmissionItemRepository(
-    mongoComponent = mongoComponent,
-    clock = clock,
-    configuration = Configuration("lock-ttl" -> 30)
-  )
+  override lazy val app: Application =
+    GuiceApplicationBuilder()
+      .configure("lock-ttl" -> 30)
+      .overrides(
+        bind[MongoComponent].toInstance(mongoComponent),
+        bind[Clock].toInstance(clock)
+      )
+      .build()
+
+  override protected lazy val repository: SubmissionItemRepository =
+    app.injector.instanceOf[SubmissionItemRepository]
 
   private val item = SubmissionItem(
     id = "id",
@@ -97,6 +111,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.insert(item).futureValue
       repository.insert(item.copy(owner = "foo", id = "bar")).failed.futureValue
     }
+
+    mustPreserveMdc(repository.insert(randomItem))
   }
 
   "update by owner and id" - {
@@ -126,6 +142,11 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.insert(item).futureValue
       repository.update("owner", "id", SubmissionItemStatus.Submitted, failureReason = None).futureValue
       repository.get("owner", "id").futureValue.value mustEqual expected
+    }
+
+    mustPreserveMdc {
+      repository.insert(item).futureValue
+      repository.update("owner", "id", SubmissionItemStatus.Processed, failureReason = Some("failure"))
     }
   }
 
@@ -157,6 +178,11 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = None).futureValue
       repository.get("correlationId").futureValue.value mustEqual expected
     }
+
+    mustPreserveMdc {
+      repository.insert(item).futureValue
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = Some("failure"))
+    }
   }
 
   "get by owner and id" - {
@@ -172,6 +198,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.insert(item.copy(owner = "owner2", id = "foobar", sdesCorrelationId = "correlationId2")).futureValue
       repository.get("owner", "foobar").futureValue mustNot be (defined)
     }
+
+    mustPreserveMdc(repository.get("owner", "id"))
   }
 
   "list by owner" -{
@@ -258,6 +286,16 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 2
     }
+
+    "must return an empty list result when there are no submissions" in {
+
+      val result = repository.list("owner").futureValue
+
+      result.summaries mustBe empty
+      result.totalCount mustBe 0
+    }
+
+    mustPreserveMdc(repository.list("owner"))
   }
 
   "get by sdesCorrelationId" - {
@@ -272,6 +310,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.insert(item).futureValue
       repository.get("correlationId2").futureValue mustNot be (defined)
     }
+
+    mustPreserveMdc(repository.get("correlationId"))
   }
 
   "remove" - {
@@ -293,6 +333,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.get("owner", "id").futureValue mustNot be (defined)
       repository.get("owner", "foobar").futureValue mustBe defined
     }
+
+    mustPreserveMdc(repository.remove("owner", "id"))
   }
 
   "lockAndReplaceOldestItemByStatus" - {
@@ -409,6 +451,30 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       runningFuture.failed.futureValue
       repository.get(item.sdesCorrelationId).futureValue.value.lockedAt.value mustEqual clock.instant()
     }
+
+    "must preserve MDC" in {
+
+      val ec = app.injector.instanceOf[ExecutionContext]
+
+      MDC.put("test", "foo")
+
+      val item1 = randomItem
+      val item2 = randomItem
+
+      repository.insert(item1).futureValue
+      clock.advance(Duration.ofMinutes(1))
+      repository.insert(item2).futureValue
+      clock.advance(Duration.ofMinutes(1))
+
+      repository.lockAndReplaceOldestItemByStatus(SubmissionItemStatus.Submitted) { item =>
+        Future.successful {
+          MDC.get("test") mustEqual "foo"
+          item.copy(status = SubmissionItemStatus.Processed)
+        }
+      }.map { _ =>
+        MDC.get("test") mustEqual "foo"
+      }(ec).futureValue
+    }
   }
 
   "countByStatus" - {
@@ -438,6 +504,8 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.countByStatus(SubmissionItemStatus.Completed).futureValue mustEqual 1
       repository.countByStatus(SubmissionItemStatus.Forwarded).futureValue mustEqual 1
     }
+
+    mustPreserveMdc(repository.countByStatus(SubmissionItemStatus.Submitted))
   }
 
   "dailySummaries" - {
@@ -475,6 +543,26 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val result = repository.dailySummaries("my-service").futureValue
       result mustBe empty
     }
+
+    mustPreserveMdc(repository.dailySummaries("my-service"))
+  }
+
+  "owners" - {
+
+    "must return a set of all owners" in {
+
+      List(
+        randomItem.copy(owner = "foo"),
+        randomItem.copy(owner = "foo"),
+        randomItem.copy(owner = "bar")
+      ).traverse(repository.insert)
+        .futureValue
+
+      val result = repository.owners.futureValue
+      result mustEqual Set("foo", "bar")
+    }
+
+    mustPreserveMdc(repository.owners)
   }
 
   private def randomItem: SubmissionItem = item.copy(
@@ -483,4 +571,16 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     sdesCorrelationId = UUID.randomUUID().toString,
     lastUpdated = clock.instant()
   )
+
+  private def mustPreserveMdc[A](f: => Future[A])(implicit pos: Position): Unit =
+    "must preserve MDC" in {
+
+      val ec = app.injector.instanceOf[ExecutionContext]
+
+      MDC.put("test", "foo")
+
+      f.map { _ =>
+        MDC.get("test") mustEqual "foo"
+      }(ec).futureValue
+    }
 }

@@ -8,3 +8,5 @@ GET        /:owner/submissions/summaries        controllers.SubmissionAdminContr
 
 GET        /:owner/submissions/:id              controllers.SubmissionAdminController.show(owner: String, id: String)
 POST       /:owner/submissions/:id/retry        controllers.SubmissionAdminController.retry(owner: String, id: String)
+
+GET        /services                            controllers.SubmissionAdminController.listServices
