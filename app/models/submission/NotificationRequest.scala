@@ -22,6 +22,7 @@ final case class NotificationRequest(
                                       id: String,
                                       status: SubmissionItemStatus,
                                       objectSummary: ObjectSummary,
+                                      failureType: Option[SubmissionItem.FailureType],
                                       failureReason: Option[String]
                                     )
 

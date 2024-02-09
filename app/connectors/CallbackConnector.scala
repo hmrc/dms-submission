@@ -57,6 +57,7 @@ class CallbackConnector @Inject() (
       id = item.id,
       status = item.status,
       objectSummary = item.objectSummary,
+      failureType = item.failureType,
       failureReason = item.failureReason
     )
 }

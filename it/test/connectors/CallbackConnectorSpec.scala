@@ -59,7 +59,8 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
         contentMd5 = "hash",
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
-      failureReason = None,
+      failureType = Some(SubmissionItem.FailureType.Sdes),
+      failureReason = Some("reason"),
       created = clock.instant(),
       lastUpdated = clock.instant(),
       sdesCorrelationId = "sdesCorrelationId"
@@ -69,7 +70,8 @@ class CallbackConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures 
       id = item.id,
       status = item.status,
       objectSummary = item.objectSummary,
-      failureReason = item.failureReason
+      failureType = item.failureType,
+      failureReason = item.failureReason,
     )
 
     "must POST a notification to the callback url in the submission item" in {

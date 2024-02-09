@@ -70,6 +70,7 @@ class SubmissionService @Inject() (
         contentMd5 = objectSummary.contentMd5.value,
         lastModified = objectSummary.lastModified
       ),
+      failureType = None,
       failureReason = None,
       created = clock.instant(),
       lastUpdated = clock.instant(),

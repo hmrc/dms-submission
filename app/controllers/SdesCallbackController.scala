@@ -57,7 +57,14 @@ class SdesCallbackController @Inject() (
             Future.failed(SubmissionLockedException(item.sdesCorrelationId))
           } else {
             getNewItemStatus(request.body.notification).map { newStatus =>
-              submissionItemRepository.update(item.sdesCorrelationId, newStatus, request.body.failureReason)
+
+              val failureType = if (newStatus == SubmissionItemStatus.Failed) {
+                Some(SubmissionItem.FailureType.Sdes)
+              } else {
+                None
+              }
+
+              submissionItemRepository.update(item.sdesCorrelationId, newStatus, failureType, request.body.failureReason)
                 .map(_ => Ok)
             }.getOrElse(Future.successful(Ok))
           }.flatTap(_ => auditSdesCallback(item, request.body))

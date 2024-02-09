@@ -81,6 +81,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       contentMd5 = "hash",
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     ),
+    failureType = None,
     failureReason = None,
     created = clock.instant().minus(1, ChronoUnit.DAYS),
     lastUpdated = clock.instant().minus(1, ChronoUnit.DAYS),
@@ -121,70 +122,70 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
   "update by owner and id" - {
 
     "must update a record if it exists and return it" in {
-      val expected = item.copy(status = SubmissionItemStatus.Processed, failureReason = Some("failure"), lastUpdated = clock.instant())
+      val expected = item.copy(status = SubmissionItemStatus.Processed, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure"), lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("owner", "id", SubmissionItemStatus.Processed, failureReason = Some("failure")).futureValue mustEqual expected
+      repository.update("owner", "id", SubmissionItemStatus.Processed, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure")).futureValue mustEqual expected
       repository.get("owner", "id").futureValue.value mustEqual expected
     }
 
     "must fail if no record exists" in {
       repository.insert(item).futureValue
-      repository.update("owner", "foobar", SubmissionItemStatus.Submitted, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
+      repository.update("owner", "foobar", SubmissionItemStatus.Submitted, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
     }
 
     "must remove failure reason if it's passed as `None`" in {
-      val newItem = item.copy(failureReason = Some("failure"))
+      val newItem = item.copy(failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure"))
       val expected = item.copy(lastUpdated = clock.instant())
       repository.insert(newItem).futureValue
-      repository.update("owner", "id", SubmissionItemStatus.Submitted, failureReason = None).futureValue
+      repository.update("owner", "id", SubmissionItemStatus.Submitted, failureType = None, failureReason = None).futureValue
       repository.get("owner", "id").futureValue.value mustEqual expected
     }
 
     "must succeed when there is no failure reason to remove" in {
       val expected = item.copy(lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("owner", "id", SubmissionItemStatus.Submitted, failureReason = None).futureValue
+      repository.update("owner", "id", SubmissionItemStatus.Submitted, failureType = None, failureReason = None).futureValue
       repository.get("owner", "id").futureValue.value mustEqual expected
     }
 
     mustPreserveMdc {
       repository.insert(item).futureValue
-      repository.update("owner", "id", SubmissionItemStatus.Processed, failureReason = Some("failure"))
+      repository.update("owner", "id", SubmissionItemStatus.Processed, failureType = None, failureReason = Some("failure"))
     }
   }
 
   "update by sdesCorrelationId" - {
 
     "must update a record if it exists and return it" in {
-      val expected = item.copy(status = SubmissionItemStatus.Submitted, failureReason = Some("failure"), lastUpdated = clock.instant())
+      val expected = item.copy(status = SubmissionItemStatus.Submitted, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure"), lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = Some("failure")).futureValue mustEqual expected
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure")).futureValue mustEqual expected
       repository.get("correlationId").futureValue.value mustEqual expected
     }
 
     "must fail if no record exists" in {
       repository.insert(item).futureValue
-      repository.update("foobar", SubmissionItemStatus.Submitted, failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
+      repository.update("foobar", SubmissionItemStatus.Submitted, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure")).failed.futureValue mustEqual SubmissionItemRepository.NothingToUpdateException
     }
 
     "must remove failure reason if it's passed as `None`" in {
-      val newItem = item.copy(failureReason = Some("failure"))
+      val newItem = item.copy(failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("failure"))
       val expected = item.copy(lastUpdated = clock.instant())
       repository.insert(newItem).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = None).futureValue
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureType = None, failureReason = None).futureValue
       repository.get("correlationId").futureValue.value mustEqual expected
     }
 
     "must succeed when there is no failure reason to remove" in {
       val expected = item.copy(lastUpdated = clock.instant())
       repository.insert(item).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = None).futureValue
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureType = None, failureReason = None).futureValue
       repository.get("correlationId").futureValue.value mustEqual expected
     }
 
     mustPreserveMdc {
       repository.insert(item).futureValue
-      repository.update("correlationId", SubmissionItemStatus.Submitted, failureReason = Some("failure"))
+      repository.update("correlationId", SubmissionItemStatus.Submitted, failureType = None, failureReason = Some("failure"))
     }
   }
 
@@ -592,11 +593,13 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       val updatedItem1 = repository.get(item1.sdesCorrelationId).futureValue.value
       updatedItem1.status mustEqual SubmissionItemStatus.Failed
       updatedItem1.lastUpdated mustEqual clock.instant()
+      updatedItem1.failureType.value mustEqual SubmissionItem.FailureType.Timeout
       updatedItem1.failureReason.value mustEqual "Did not receive a callback from SDES within PT24H"
 
       val updatedItem2 = repository.get(item2.sdesCorrelationId).futureValue.value
       updatedItem2.status mustEqual SubmissionItemStatus.Failed
       updatedItem2.lastUpdated mustEqual clock.instant()
+      updatedItem1.failureType.value mustEqual SubmissionItem.FailureType.Timeout
       updatedItem2.failureReason.value mustEqual "Did not receive a callback from SDES within PT24H"
     }
 

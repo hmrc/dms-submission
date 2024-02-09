@@ -25,6 +25,7 @@ import java.time.Instant
 final case class SubmissionSummary(
                                     id: String,
                                     status: SubmissionItemStatus,
+                                    failureType: Option[SubmissionItem.FailureType],
                                     failureReason: Option[String],
                                     lastUpdated: Instant
                                   )
@@ -37,6 +38,7 @@ object SubmissionSummary extends MongoJavatimeFormats.Implicits {
     SubmissionSummary(
       id = submissionItem.id,
       status = submissionItem.status,
+      failureType = submissionItem.failureType,
       failureReason = submissionItem.failureReason,
       lastUpdated = submissionItem.lastUpdated
     )

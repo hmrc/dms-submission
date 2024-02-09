@@ -77,6 +77,7 @@ class SubmissionItemRepository @Inject() (
   ),
   extraCodecs =
     Codecs.playFormatSumCodecs(SubmissionItemStatus.format) ++
+    Codecs.playFormatSumCodecs(SubmissionItem.FailureType.format) ++
     Seq(
       Codecs.playFormatCodec(ListResult.format),
       Codecs.playFormatCodec(DailySummary.mongoFormat)
@@ -93,22 +94,34 @@ class SubmissionItemRepository @Inject() (
         .map(_ => Done)
     }
 
-  def update(owner: String, id: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] =
+  def update(
+              owner: String,
+              id: String,
+              status: SubmissionItemStatus,
+              failureType: Option[SubmissionItem.FailureType],
+              failureReason: Option[String]): Future[SubmissionItem] =
     update(Filters.and(
       Filters.equal("id", id),
       Filters.equal("owner", owner)
-    ), status, failureReason)
+    ), status, failureType, failureReason)
 
-  def update(sdesCorrelationId: String, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] =
-    update(Filters.equal("sdesCorrelationId", sdesCorrelationId), status, failureReason)
+  def update(
+              sdesCorrelationId: String,
+              status: SubmissionItemStatus,
+              failureType: Option[SubmissionItem.FailureType],
+              failureReason: Option[String]
+            ): Future[SubmissionItem] =
+    update(Filters.equal("sdesCorrelationId", sdesCorrelationId), status, failureType, failureReason)
 
-  private def update(filter: Bson, status: SubmissionItemStatus, failureReason: Option[String]): Future[SubmissionItem] = {
+  private def update(filter: Bson, status: SubmissionItemStatus, failureType: Option[SubmissionItem.FailureType], failureReason: Option[String]): Future[SubmissionItem] = {
 
     val updates = List(
       Updates.set("lastUpdated", clock.instant()),
       Updates.set("status", status),
       failureReason.map(Updates.set("failureReason", _))
-        .getOrElse(Updates.unset("failureReason"))
+        .getOrElse(Updates.unset("failureReason")),
+      failureType.map(Updates.set("failureType", _))
+        .getOrElse(Updates.unset("failureType"))
     )
 
     Mdc.preservingMdc {
@@ -291,6 +304,7 @@ class SubmissionItemRepository @Inject() (
     val updates = Updates.combine(
       Updates.set("status", SubmissionItemStatus.Failed),
       Updates.set("lastUpdated", clock.instant()),
+      Updates.set("failureType", SubmissionItem.FailureType.Timeout),
       Updates.set("failureReason", s"Did not receive a callback from SDES within $timeoutDuration")
     )
 
