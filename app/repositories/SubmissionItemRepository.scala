@@ -18,6 +18,8 @@ package repositories
 
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, Done, ListResult}
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.scaladsl.Source
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
@@ -313,6 +315,17 @@ class SubmissionItemRepository @Inject() (
         .map(_.getModifiedCount)
         .head()
     }
+  }
+
+  def getTimedOutItems(owner: String): Source[SubmissionItem, NotUsed] = {
+
+    val filter = Filters.and(
+      Filters.eq("owner", owner),
+      Filters.eq("status", SubmissionItemStatus.Completed),
+      Filters.eq("failureType", SubmissionItem.FailureType.Timeout)
+    )
+
+    Source.fromPublisher(collection.find(filter))
   }
 }
 

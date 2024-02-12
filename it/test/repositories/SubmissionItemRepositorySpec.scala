@@ -19,6 +19,7 @@ package repositories
 import cats.implicits.toTraverseOps
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, SubmissionSummary}
+import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -37,6 +38,7 @@ import java.time.temporal.ChronoUnit
 import java.time.{Clock, Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{DAYS, DurationInt}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class SubmissionItemRepositorySpec extends AnyFreeSpec
@@ -604,6 +606,27 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
 
     mustPreserveMdc(repository.failTimedOutItems)
+  }
+
+  "getTimedOutItems" - {
+
+    "must return all timed out items for the given owner" in {
+
+      val item1 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item2 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item3 = randomItem.copy(owner = "owner2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item4 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("reason"))
+      val item5 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+
+      clock.set(now)
+      List(item1, item2, item3, item4, item5).traverse(repository.insert).futureValue
+
+      val result = repository.getTimedOutItems("owner").runWith(Sink.collection)(app.materializer).futureValue.toSeq
+
+      result.length mustBe 2
+      result must contain(item1)
+      result must contain(item2)
+    }
   }
 
   private def randomItem: SubmissionItem = item.copy(
