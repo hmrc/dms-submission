@@ -177,7 +177,11 @@ class CallbackServiceSpec extends AnyFreeSpec with Matchers
 
     "must notify the callback for the latest failed item, update the status to Completed, and return Found when there an item to process" in {
 
-      val item = randomItem.copy(status = SubmissionItemStatus.Failed)
+      val item = randomItem.copy(
+        status = SubmissionItemStatus.Failed,
+        failureReason = Some("reason"),
+        failureType = Some(SubmissionItem.FailureType.Sdes)
+      )
 
       when(mockCallbackConnector.notify(any())).thenReturn(Future.successful(Done))
 
@@ -190,6 +194,8 @@ class CallbackServiceSpec extends AnyFreeSpec with Matchers
 
       val updatedItem = repository.get(item.sdesCorrelationId).futureValue.value
       updatedItem.status mustEqual SubmissionItemStatus.Completed
+      updatedItem.failureReason.value mustEqual "reason"
+      updatedItem.failureType.value mustEqual SubmissionItem.FailureType.Sdes
     }
 
     "must return NotFound when there is no item to process" in {
