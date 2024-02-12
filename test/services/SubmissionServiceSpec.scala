@@ -121,6 +121,7 @@ class SubmissionServiceSpec extends AnyFreeSpec with Matchers
         contentMd5 = "hash",
         lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
       ),
+      failureType = None,
       failureReason = None,
       created = clock.instant(),
       lastUpdated = clock.instant(),

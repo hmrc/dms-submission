@@ -89,6 +89,7 @@ class SubmissionAdminControllerSpec
       contentMd5 = "hash",
       lastModified = clock.instant().minus(2, ChronoUnit.DAYS)
     ),
+    failureType = None,
     failureReason = None,
     created = clock.instant(),
     lastUpdated = clock.instant(),
@@ -225,7 +226,7 @@ class SubmissionAdminControllerSpec
       )
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
-      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.successful(item))
+      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any(), any())).thenReturn(Future.successful(item))
       when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
@@ -235,14 +236,14 @@ class SubmissionAdminControllerSpec
       val result = route(app, request).value
 
       status(result) mustEqual ACCEPTED
-      verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id"), eqTo(SubmissionItemStatus.Submitted), eqTo(None))
+      verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id"), eqTo(SubmissionItemStatus.Submitted), eqTo(None), eqTo(None))
       verify(mockAuditService, times(1)).auditRetryRequest(eqTo(expectedAudit))(any())
     }
 
     "must return Not Found when an authorised user attempts to retry a submission item that cannot be found" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
-      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any())).thenReturn(Future.failed(SubmissionItemRepository.NothingToUpdateException))
+      when(mockSubmissionItemRepository.update(eqTo("owner"), eqTo("id"), any(), any(), any())).thenReturn(Future.failed(SubmissionItemRepository.NothingToUpdateException))
       when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =

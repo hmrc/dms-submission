@@ -76,7 +76,7 @@ class SubmissionAdminController @Inject()(
 
   def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
     submissionItemRepository
-      .update(owner, id, SubmissionItemStatus.Submitted, None)
+      .update(owner, id, SubmissionItemStatus.Submitted, None, None)
       .flatTap(auditRetryRequest(_, request.retrieval))
       .as(Accepted)
       .recover {
