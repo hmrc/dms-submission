@@ -17,7 +17,7 @@
 package repositories
 
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, DailySummaryV2, Done, ListResult}
+import models.{DailySummary, DailySummaryV2, Done, ErrorSummary, ListResult}
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.scaladsl.Source
 import org.bson.conversions.Bson
@@ -83,7 +83,8 @@ class SubmissionItemRepository @Inject() (
     Seq(
       Codecs.playFormatCodec(ListResult.format),
       Codecs.playFormatCodec(DailySummary.mongoFormat),
-      Codecs.playFormatCodec(DailySummaryV2.mongoFormat)
+      Codecs.playFormatCodec(DailySummaryV2.mongoFormat),
+      Codecs.playFormatCodec(ErrorSummary.format)
     )
   ) {
 
@@ -345,6 +346,26 @@ class SubmissionItemRepository @Inject() (
         )
       )).toFuture()
     }
+  }
+
+  def errorSummary(owner: String): Future[ErrorSummary] = Mdc.preservingMdc {
+    collection.aggregate[ErrorSummary](Seq(
+      Aggregates.`match`(Filters.and(
+        Filters.eq("owner", owner),
+        Filters.eq("status", SubmissionItemStatus.Completed),
+        Filters.exists("failureType")
+      )),
+      Aggregates.facet(
+        Facet("sdesFailureCount", Aggregates.`match`(Filters.eq("failureType", SubmissionItem.FailureType.Sdes)), Aggregates.count()),
+        Facet("timeoutFailureCount", Aggregates.`match`(Filters.eq("failureType", SubmissionItem.FailureType.Timeout)), Aggregates.count())
+      ),
+      Aggregates.unwind("$sdesFailureCount", UnwindOptions().preserveNullAndEmptyArrays(true)),
+      Aggregates.unwind("$timeoutFailureCount", UnwindOptions().preserveNullAndEmptyArrays(true)),
+      Aggregates.project(Json.obj(
+        "sdesFailureCount" -> Json.obj("$ifNull" -> Json.arr("$sdesFailureCount.count", 0)),
+        "timeoutFailureCount" -> Json.obj("$ifNull" -> Json.arr("$timeoutFailureCount.count", 0))
+      ).toDocument())
+    )).head()
   }
 
   def owners: Future[Set[String]] =

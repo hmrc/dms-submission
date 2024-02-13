@@ -18,7 +18,7 @@ package repositories
 
 import cats.implicits.toTraverseOps
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, DailySummaryV2, SubmissionSummary}
+import models.{DailySummary, DailySummaryV2, ErrorSummary, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
@@ -579,6 +579,48 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
 
     mustPreserveMdc(repository.dailySummariesV2("my-service"))
+  }
+
+  "errorSummary" - {
+
+    "must return a summary of errored items for a particular owner" in {
+
+      List(
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Submitted),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Processed),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Forwarded)
+      ).traverse(repository.insert).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 2, timeoutFailureCount = 1)
+    }
+
+    "must return when there are only tieout errors" in {
+
+      val item = randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      repository.insert(item).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 0, timeoutFailureCount = 1)
+    }
+
+    "must return when there are only sdes errors" in {
+
+      val item = randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      repository.insert(item).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 1, timeoutFailureCount = 0)
+    }
+
+    "must return an empty summary if there are no errored items" in {
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(0, 0)
+    }
+
+    mustPreserveMdc(repository.errorSummary("my-service"))
   }
 
   "owners" - {
