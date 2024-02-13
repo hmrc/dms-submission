@@ -232,9 +232,26 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
       List(item1, item2, item3).traverse(insert).futureValue
 
-      val result = repository.list("owner", status = Some(SubmissionItemStatus.Failed)).futureValue
+      val result = repository.list("owner", status = Seq(SubmissionItemStatus.Failed)).futureValue
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 1
+    }
+
+    "must return a items with any of the statuses supplied" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed)
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed)
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", owner = "some-other-owner")
+
+      List(item1, item2, item3).traverse(insert).futureValue
+
+      val result = repository.list("owner", status = Seq(SubmissionItemStatus.Failed, SubmissionItemStatus.Completed)).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
     }
 
     "must return a list of items filtered by the day the item was created" in {
@@ -261,7 +278,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
         randomItem.copy(owner = "owner2", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
       ).traverse(insert).futureValue
 
-      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Some(SubmissionItemStatus.Completed)).futureValue
+      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Seq(SubmissionItemStatus.Completed)).futureValue
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 1
     }
@@ -600,7 +617,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 2, timeoutFailureCount = 1)
     }
 
-    "must return when there are only tieout errors" in {
+    "must return when there are only timeout errors" in {
 
       val item = randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
       repository.insert(item).futureValue

@@ -57,7 +57,7 @@ class SubmissionAdminController @Inject()(
 
   def list(
             owner: String,
-            status: Option[SubmissionItemStatus],
+            status: Seq[SubmissionItemStatus],
             created: Option[LocalDate],
             limit: Int,
             offset: Int

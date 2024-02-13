@@ -113,11 +113,19 @@ class SubmissionAdminControllerSpec
       val request =
         FakeRequest(routes.SubmissionAdminController.list(
           owner = "owner",
-          status = Some(SubmissionItemStatus.Completed),
+          status = Seq(SubmissionItemStatus.Completed),
           created = Some(LocalDate.now(clock)),
           limit = 10,
           offset = 5
         )).withHeaders("Authorization" -> "Token foo")
+
+      println(routes.SubmissionAdminController.list(
+        owner = "owner",
+        status = Seq(SubmissionItemStatus.Completed, SubmissionItemStatus.Submitted),
+        created = Some(LocalDate.now(clock)),
+        limit = 10,
+        offset = 5
+      ))
 
       val result = route(app, request).value
 
@@ -127,7 +135,7 @@ class SubmissionAdminControllerSpec
 
       verify(mockSubmissionItemRepository).list(
         owner = "owner",
-        status = Some(SubmissionItemStatus.Completed),
+        status = Seq(SubmissionItemStatus.Completed),
         created = Some(LocalDate.now(clock)),
         limit = 10,
         offset = 5

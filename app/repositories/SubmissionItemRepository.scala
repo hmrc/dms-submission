@@ -165,14 +165,14 @@ class SubmissionItemRepository @Inject() (
     }
 
   def list(owner: String,
-           status: Option[SubmissionItemStatus] = None,
+           status: Seq[SubmissionItemStatus] = Seq.empty,
            created: Option[LocalDate] = None,
            limit: Int = 50,
            offset: Int = 0
           ): Future[ListResult] = {
 
     val ownerFilter = Filters.equal("owner", owner)
-    val statusFilter = status.toList.map(Filters.equal("status", _))
+    val statusFilter = Option.when(status.nonEmpty)(Filters.or(status.map(Filters.equal("status", _)): _*))
     val createdFilter = created.toList.flatMap { date =>
       List(
         Filters.gte("created", date.atStartOfDay(ZoneOffset.UTC).toInstant),
