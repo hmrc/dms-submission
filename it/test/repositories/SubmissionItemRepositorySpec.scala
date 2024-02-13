@@ -38,7 +38,6 @@ import java.time.temporal.ChronoUnit
 import java.time.{Clock, Duration, Instant, LocalDate}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.{DAYS, DurationInt}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class SubmissionItemRepositorySpec extends AnyFreeSpec

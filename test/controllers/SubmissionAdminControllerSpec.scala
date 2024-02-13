@@ -17,8 +17,9 @@
 package controllers
 
 import audit.{AuditService, RetryRequestEvent}
-import models.{DailySummary, ListResult, SubmissionSummary}
+import models.{DailySummary, Done, ListResult, SubmissionSummary}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
+import org.apache.pekko.stream.scaladsl.Source
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, times, verify, when}
@@ -277,6 +278,66 @@ class SubmissionAdminControllerSpec
 
       route(app, request).value.failed.futureValue
       verify(mockSubmissionItemRepository, never()).update(any(), any(), any(), any())
+    }
+  }
+
+  "retryTimeouts" - {
+
+    "must retry timed out submissions, audit, and return Accepted when the user is authorised" in {
+
+      val timedOutItem = item.copy(status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val timedOutItem2 = timedOutItem.copy(id = "id2")
+
+      def expectedAudit(id: String) = RetryRequestEvent(
+        id = id,
+        owner = "owner",
+        sdesCorrelationId = "sdesCorrelationId",
+        user = "username"
+      )
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockSubmissionItemRepository.getTimedOutItems(any())).thenReturn(Source(Seq(timedOutItem, timedOutItem2)))
+      when(mockSubmissionItemRepository.update(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(timedOutItem))
+        .thenReturn(Future.successful(timedOutItem2))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.retryTimeouts("owner"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual ACCEPTED
+      contentAsJson(result) mustEqual Json.obj("numberOfItemsRetried" -> 2)
+      verify(mockSubmissionItemRepository, times(1)).getTimedOutItems(eqTo("owner"))
+      verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id"), eqTo(SubmissionItemStatus.Submitted), eqTo(None), eqTo(None))
+      verify(mockSubmissionItemRepository, times(1)).update(eqTo("owner"), eqTo("id2"), eqTo(SubmissionItemStatus.Submitted), eqTo(None), eqTo(None))
+      verify(mockAuditService, times(1)).auditRetryRequest(eqTo(expectedAudit("id")))(any())
+      verify(mockAuditService, times(1)).auditRetryRequest(eqTo(expectedAudit("id2")))(any())
+    }
+
+    "must fail for an unauthenticated user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request = FakeRequest(routes.SubmissionAdminController.retry("owner", "id")) // No Authorization header
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).getTimedOutItems(any())
+    }
+
+    "must fail when the user is not authorised" in {
+
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.retryTimeouts("owner"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).getTimedOutItems(any())
     }
   }
 
