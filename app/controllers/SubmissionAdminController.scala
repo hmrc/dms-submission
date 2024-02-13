@@ -91,7 +91,7 @@ class SubmissionAdminController @Inject()(
       submissionItemRepository.getTimedOutItems(owner).mapAsync(1) { item =>
         retry(owner, item.id, request.retrieval).void
       }.runWith(Sink.fold(0)((m, _) => m + 1))
-    } .map { count =>
+    }.map { count =>
       Accepted(Json.obj("numberOfItemsRetried" -> count))
     }
   }
@@ -100,6 +100,13 @@ class SubmissionAdminController @Inject()(
     submissionItemRepository
       .dailySummaries(owner)
       .map(summaries => Ok(Json.obj("summaries" -> summaries)))
+  }
+
+  def summary(owner: String): Action[AnyContent] = authorised(owner, read).async {
+    for {
+      errorSummary   <- submissionItemRepository.errorSummary(owner)
+      dailySummaries <- submissionItemRepository.dailySummariesV2(owner)
+    } yield Ok(Json.obj("errors" -> errorSummary, "summaries" -> dailySummaries))
   }
 
   def listServices: Action[AnyContent] = Action.async {

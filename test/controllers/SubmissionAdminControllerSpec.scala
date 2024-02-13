@@ -17,7 +17,7 @@
 package controllers
 
 import audit.{AuditService, RetryRequestEvent}
-import models.{DailySummary, Done, ListResult, SubmissionSummary}
+import models.{DailySummary, DailySummaryV2, Done, ErrorSummary, ListResult, SubmissionSummary}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import org.apache.pekko.stream.scaladsl.Source
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
@@ -383,6 +383,63 @@ class SubmissionAdminControllerSpec
 
       route(app, request).value.failed.futureValue
       verify(mockSubmissionItemRepository, never()).dailySummaries(any())
+    }
+  }
+
+  "summary" - {
+
+    "must return an error summary and daily summaries for an authorised user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
+      val dailySummaries = List(DailySummaryV2(LocalDate.now, 1, 2, 3))
+      val errorSummary = ErrorSummary(1, 2)
+
+      when(mockSubmissionItemRepository.dailySummariesV2(any())).thenReturn(Future.successful(dailySummaries))
+      when(mockSubmissionItemRepository.errorSummary(any())).thenReturn(Future.successful(errorSummary))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.summary("owner"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      val result = route(app, request).value
+
+      status(result) mustEqual OK
+
+      val expectedResult = Json.obj(
+        "errors" -> errorSummary,
+        "summaries" -> dailySummaries
+      )
+
+      contentAsJson(result) mustEqual Json.toJson(expectedResult)
+
+      verify(mockSubmissionItemRepository, times(1)).dailySummariesV2(eqTo("owner"))
+      verify(mockSubmissionItemRepository, times(1)).errorSummary(eqTo("owner"))
+    }
+
+    "must fail for an unauthenticated user" in {
+
+      val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("WRITE"))
+      when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
+
+      val request = FakeRequest(routes.SubmissionAdminController.summary("owner")) // No Authorization header
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).dailySummariesV2(any())
+      verify(mockSubmissionItemRepository, never()).errorSummary(any())
+    }
+
+    "must fail when the user is not authorised" in {
+
+      when(mockStubBehaviour.stubAuth(any(), eqTo(Retrieval.username))).thenReturn(Future.failed(new Exception("foo")))
+
+      val request =
+        FakeRequest(routes.SubmissionAdminController.summary("owner"))
+          .withHeaders("Authorization" -> "Token foo")
+
+      route(app, request).value.failed.futureValue
+      verify(mockSubmissionItemRepository, never()).dailySummariesV2(any())
+      verify(mockSubmissionItemRepository, never()).errorSummary(any())
     }
   }
 
