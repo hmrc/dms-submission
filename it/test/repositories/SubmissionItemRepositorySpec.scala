@@ -17,7 +17,7 @@
 package repositories
 
 import cats.implicits.toTraverseOps
-import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.submission.{NoFailureType, ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, DailySummaryV2, ErrorSummary, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
@@ -267,18 +267,60 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       result.totalCount mustEqual 1
     }
 
+    "must return a list of items filtered by failure type" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(Right(SubmissionItem.FailureType.Timeout))).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
+    }
+
+    "must only return items without a failure type when NoFailureType is passed" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed)
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed)
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(Left(NoFailureType))).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
+    }
+
     "must apply all filters" in {
 
-      val item1 = randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed)
+      val item1 = randomItem.copy(
+        owner = "owner",
+        created = clock.instant().minus(Duration.ofDays(2)),
+        status = SubmissionItemStatus.Completed,
+        failureType = Some(SubmissionItem.FailureType.Sdes)
+      )
 
       List(
         item1,
         randomItem.copy(owner = "owner", created = clock.instant(), status = SubmissionItemStatus.Completed),
         randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Forwarded),
         randomItem.copy(owner = "owner2", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
+        randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
       ).traverse(insert).futureValue
 
-      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Seq(SubmissionItemStatus.Completed)).futureValue
+      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Seq(SubmissionItemStatus.Completed), failureType = Some(Right(SubmissionItem.FailureType.Sdes))).futureValue
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 1
     }

@@ -17,32 +17,32 @@
 package controllers
 
 import audit.{AuditService, RetryRequestEvent}
-import models.{DailySummary, DailySummaryV2, Done, ErrorSummary, ListResult, SubmissionSummary}
 import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
+import models.{DailySummary, DailySummaryV2, ErrorSummary, ListResult, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Source
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.{BeforeAndAfterEach, OptionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
-import play.api.test.{FakeRequest, Helpers}
 import play.api.test.Helpers._
+import play.api.test.{FakeRequest, Helpers}
 import repositories.SubmissionItemRepository
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Resource, ResourceLocation, ResourceType, Retrieval}
 import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.internalauth.client.Retrieval.Username
 import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
+import uk.gov.hmrc.internalauth.client._
 
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant, LocalDate, ZoneOffset}
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class SubmissionAdminControllerSpec
   extends AnyFreeSpec
@@ -107,7 +107,7 @@ class SubmissionAdminControllerSpec
     "must return a list of submissions for an authorised user" in {
 
       val predicate = Permission(Resource(ResourceType("dms-submission"), ResourceLocation("owner")), IAAction("READ"))
-      when(mockSubmissionItemRepository.list(any(), any(), any(), any(), any())).thenReturn(Future.successful(listResult))
+      when(mockSubmissionItemRepository.list(any(), any(), any(), any(), any(), any())).thenReturn(Future.successful(listResult))
       when(mockStubBehaviour.stubAuth(eqTo(Some(predicate)), eqTo(Retrieval.username))).thenReturn(Future.successful(Username("username")))
 
       val request =
@@ -115,17 +115,10 @@ class SubmissionAdminControllerSpec
           owner = "owner",
           status = Seq(SubmissionItemStatus.Completed),
           created = Some(LocalDate.now(clock)),
+          failureType = Some(Right(SubmissionItem.FailureType.Timeout)),
           limit = 10,
           offset = 5
         )).withHeaders("Authorization" -> "Token foo")
-
-      println(routes.SubmissionAdminController.list(
-        owner = "owner",
-        status = Seq(SubmissionItemStatus.Completed, SubmissionItemStatus.Submitted),
-        created = Some(LocalDate.now(clock)),
-        limit = 10,
-        offset = 5
-      ))
 
       val result = route(app, request).value
 
@@ -136,6 +129,7 @@ class SubmissionAdminControllerSpec
       verify(mockSubmissionItemRepository).list(
         owner = "owner",
         status = Seq(SubmissionItemStatus.Completed),
+        failureType = Some(Right(SubmissionItem.FailureType.Timeout)),
         created = Some(LocalDate.now(clock)),
         limit = 10,
         offset = 5
@@ -147,7 +141,7 @@ class SubmissionAdminControllerSpec
       val request = FakeRequest(routes.SubmissionAdminController.list("owner")) // No Authorization header
 
       route(app, request).value.failed.futureValue
-      verify(mockSubmissionItemRepository, never()).list(any(), any(), any(), any(), any())
+      verify(mockSubmissionItemRepository, never()).list(any(), any(), any(), any(), any(), any())
     }
 
     "must return unauthorised for an unauthorised user" in {
@@ -159,7 +153,7 @@ class SubmissionAdminControllerSpec
           .withHeaders("Authorization" -> "Token foo")
 
       route(app, request).value.failed.futureValue
-      verify(mockSubmissionItemRepository, never()).list(any(), any(), any(), any(), any())
+      verify(mockSubmissionItemRepository, never()).list(any(), any(), any(), any(), any(), any())
     }
   }
 

@@ -3,7 +3,7 @@
 POST       /submit                              controllers.SubmissionController.submit
 POST       /sdes/callback                       controllers.SdesCallbackController.callback
 
-GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String, status: Seq[SubmissionItemStatus] ?= Seq.empty, created: Option[LocalDate] ?= None, limit: Int ?= 50, offset: Int ?= 0)
+GET        /:owner/submissions                  controllers.SubmissionAdminController.list(owner: String, status: Seq[SubmissionItemStatus] ?= Seq.empty, failureType: Option[Either[NoFailureType, SubmissionItem.FailureType]] ?= None, created: Option[LocalDate] ?= None, limit: Int ?= 50, offset: Int ?= 0)
 GET        /:owner/submissions/summaries        controllers.SubmissionAdminController.dailySummaries(owner: String)
 GET        /:owner/submissions/summary          controllers.SubmissionAdminController.summary(owner: String)
 POST       /:owner/retry-timeouts               controllers.SubmissionAdminController.retryTimeouts(owner: String)

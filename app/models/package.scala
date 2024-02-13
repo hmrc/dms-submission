@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import models.submission.{NoFailureType, SubmissionItem}
 import play.api.mvc.QueryStringBindable
 
 import java.time.LocalDate
@@ -29,5 +30,20 @@ package object models {
       LocalDate.parse(_, formatter),
       formatter.format(_),
       (key, _) => s"$key: invalid date"
+    )
+
+  implicit lazy val failureTypeQueryStringBindable: QueryStringBindable[Either[NoFailureType, SubmissionItem.FailureType]] =
+    new QueryStringBindable.Parsing[Either[NoFailureType, SubmissionItem.FailureType]](
+      {
+        case "none" => Left(NoFailureType)
+        case "sdes" => Right(SubmissionItem.FailureType.Sdes)
+        case "timeout" => Right(SubmissionItem.FailureType.Timeout)
+      },
+      {
+        case Left(NoFailureType) => "none"
+        case Right(SubmissionItem.FailureType.Sdes) => "sdes"
+        case Right(SubmissionItem.FailureType.Timeout) => "timeout"
+      },
+      (_, _) => "invalid failure type"
     )
 }

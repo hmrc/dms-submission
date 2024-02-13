@@ -16,7 +16,7 @@
 
 package repositories
 
-import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.submission.{NoFailureType, QueryResult, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, DailySummaryV2, Done, ErrorSummary, ListResult}
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.scaladsl.Source
@@ -167,19 +167,24 @@ class SubmissionItemRepository @Inject() (
   def list(owner: String,
            status: Seq[SubmissionItemStatus] = Seq.empty,
            created: Option[LocalDate] = None,
+           failureType: Option[Either[NoFailureType, SubmissionItem.FailureType]] = None,
            limit: Int = 50,
            offset: Int = 0
           ): Future[ListResult] = {
 
     val ownerFilter = Filters.equal("owner", owner)
     val statusFilter = Option.when(status.nonEmpty)(Filters.or(status.map(Filters.equal("status", _)): _*))
+    val failureTypeFilter = failureType.map {
+      _.map(Filters.equal("failureType", _))
+        .getOrElse(Filters.not(Filters.exists("failureType")))
+    }
     val createdFilter = created.toList.flatMap { date =>
       List(
         Filters.gte("created", date.atStartOfDay(ZoneOffset.UTC).toInstant),
         Filters.lt("created", date.atStartOfDay(ZoneOffset.UTC).plusDays(1).toInstant)
       )
     }
-    val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
+    val filters = Filters.and(List(List(ownerFilter), statusFilter, failureTypeFilter, createdFilter).flatten: _*)
 
     val findCount =
       Json.obj(
