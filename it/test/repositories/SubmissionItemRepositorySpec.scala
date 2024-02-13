@@ -18,7 +18,7 @@ package repositories
 
 import cats.implicits.toTraverseOps
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, SubmissionSummary}
+import models.{DailySummary, DailySummaryV2, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
@@ -550,6 +550,35 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
 
     mustPreserveMdc(repository.dailySummaries("my-service"))
+  }
+
+  "dailySummariesV2" - {
+
+    "must return a summary for every day where there are records" in {
+
+      List(
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes), created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant().plus(12, ChronoUnit.MINUTES)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Failed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Processed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Submitted, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Forwarded, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant().minus(Duration.ofDays(10))),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, created = clock.instant())
+      ).traverse(repository.insert)
+        .futureValue
+
+      val result = repository.dailySummariesV2("my-service").futureValue
+
+      result must contain theSameElementsAs List(
+        DailySummaryV2(date = LocalDate.now(clock), processing = 4, completed = 2, failed = 2),
+        DailySummaryV2(date = LocalDate.now(clock).minusDays(10), processing = 0, completed = 1, failed = 0)
+      )
+    }
+
+    mustPreserveMdc(repository.dailySummariesV2("my-service"))
   }
 
   "owners" - {

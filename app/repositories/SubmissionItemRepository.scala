@@ -17,13 +17,13 @@
 package repositories
 
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, Done, ListResult}
+import models.{DailySummary, DailySummaryV2, Done, ListResult}
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.scaladsl.Source
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsNull, JsObject, Json}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
@@ -82,7 +82,8 @@ class SubmissionItemRepository @Inject() (
     Codecs.playFormatSumCodecs(SubmissionItem.FailureType.format) ++
     Seq(
       Codecs.playFormatCodec(ListResult.format),
-      Codecs.playFormatCodec(DailySummary.mongoFormat)
+      Codecs.playFormatCodec(DailySummary.mongoFormat),
+      Codecs.playFormatCodec(DailySummaryV2.mongoFormat)
     )
   ) {
 
@@ -287,6 +288,61 @@ class SubmissionItemRepository @Inject() (
       collection.aggregate[DailySummary](List(
         Aggregates.`match`(Filters.eq("owner", owner)),
         groupExpression.toDocument()
+      )).toFuture()
+    }
+  }
+
+  def dailySummariesV2(owner: String): Future[Seq[DailySummaryV2]] = {
+
+    val processingStatuses = List(
+      SubmissionItemStatus.Submitted,
+      SubmissionItemStatus.Processed,
+      SubmissionItemStatus.Failed,
+      SubmissionItemStatus.Forwarded
+    )
+
+    Mdc.preservingMdc {
+      collection.aggregate[DailySummaryV2](List(
+        Aggregates.`match`(Filters.eq("owner", owner)),
+        Aggregates.group(
+          Json.obj("$dateTrunc" -> Json.obj("date" -> "$created", "unit" -> "day")).toDocument(),
+          Accumulators.sum("completed",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$and" -> Json.arr(
+                Json.obj("$eq" -> Json.arr("$status", SubmissionItemStatus.Completed: SubmissionItemStatus)),
+                Json.obj("$lt" -> Json.arr("$failureType", JsNull))
+              )),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          ),
+          Accumulators.sum("processing",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$in" -> Json.arr("$status", processingStatuses)),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          ),
+          Accumulators.sum("failed",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$and" -> Json.arr(
+                Json.obj("$eq" -> Json.arr("$status", SubmissionItemStatus.Completed: SubmissionItemStatus)),
+                Json.obj("$gt" -> Json.arr("$failureType", JsNull))
+              )),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          )
+        ),
+        Aggregates.project(
+          Json.obj(
+            "date" -> "$_id",
+            "_id" -> 0,
+            "completed" -> 1,
+            "processing" -> 1,
+            "failed" -> 1
+          ).toDocument()
+        )
       )).toFuture()
     }
   }
