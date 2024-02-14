@@ -17,7 +17,7 @@
 package controllers
 
 import audit.{AuditService, RetryRequestEvent}
-import models.submission.{ObjectSummary, SubmissionItem, SubmissionItemStatus}
+import models.submission.{FailureTypeQuery, ObjectSummary, SubmissionItem, SubmissionItemStatus}
 import models.{DailySummary, DailySummaryV2, ErrorSummary, ListResult, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Source
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
@@ -36,8 +36,8 @@ import play.api.test.{FakeRequest, Helpers}
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.internalauth.client.Retrieval.Username
-import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 import uk.gov.hmrc.internalauth.client._
+import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant, LocalDate, ZoneOffset}
@@ -115,7 +115,7 @@ class SubmissionAdminControllerSpec
           owner = "owner",
           status = Seq(SubmissionItemStatus.Completed),
           created = Some(LocalDate.now(clock)),
-          failureType = Some(Right(SubmissionItem.FailureType.Timeout)),
+          failureType = Some(FailureTypeQuery.These(SubmissionItem.FailureType.Timeout)),
           limit = 10,
           offset = 5
         )).withHeaders("Authorization" -> "Token foo")
@@ -129,7 +129,7 @@ class SubmissionAdminControllerSpec
       verify(mockSubmissionItemRepository).list(
         owner = "owner",
         status = Seq(SubmissionItemStatus.Completed),
-        failureType = Some(Right(SubmissionItem.FailureType.Timeout)),
+        failureType = Some(FailureTypeQuery.These(SubmissionItem.FailureType.Timeout)),
         created = Some(LocalDate.now(clock)),
         limit = 10,
         offset = 5

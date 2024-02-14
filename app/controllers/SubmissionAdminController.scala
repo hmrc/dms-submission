@@ -19,7 +19,7 @@ package controllers
 import audit.{AuditService, RetryRequestEvent}
 import cats.implicits.{toFlatMapOps, toFunctorOps}
 import models.Done
-import models.submission.{NoFailureType, SubmissionItem, SubmissionItemStatus}
+import models.submission.{FailureTypeQuery, SubmissionItem, SubmissionItemStatus}
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.Sink
 import play.api.libs.json.Json
@@ -58,7 +58,7 @@ class SubmissionAdminController @Inject()(
   def list(
             owner: String,
             status: Seq[SubmissionItemStatus],
-            failureType: Option[Either[NoFailureType, SubmissionItem.FailureType]],
+            failureType: Option[FailureTypeQuery],
             created: Option[LocalDate],
             limit: Int,
             offset: Int
