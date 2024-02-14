@@ -19,7 +19,9 @@ package controllers
 import audit.{AuditService, RetryRequestEvent}
 import cats.implicits.{toFlatMapOps, toFunctorOps}
 import models.Done
-import models.submission.{SubmissionItem, SubmissionItemStatus}
+import models.submission.{FailureTypeQuery, SubmissionItem, SubmissionItemStatus}
+import org.apache.pekko.stream.Materializer
+import org.apache.pekko.stream.scaladsl.Sink
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import repositories.SubmissionItemRepository
@@ -28,6 +30,7 @@ import uk.gov.hmrc.internalauth.client.Predicate.Permission
 import uk.gov.hmrc.internalauth.client.Retrieval.Username
 import uk.gov.hmrc.internalauth.client._
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
+import uk.gov.hmrc.play.http.logging.Mdc
 
 import java.time.LocalDate
 import javax.inject.Inject
@@ -38,7 +41,7 @@ class SubmissionAdminController @Inject()(
                                            submissionItemRepository: SubmissionItemRepository,
                                            auditService: AuditService,
                                            auth: BackendAuthComponents
-                                         )(implicit ec: ExecutionContext) extends BackendBaseController {
+                                         )(implicit ec: ExecutionContext, mat: Materializer) extends BackendBaseController {
 
   private val read = IAAction("READ")
   private val write = IAAction("WRITE")
@@ -54,14 +57,15 @@ class SubmissionAdminController @Inject()(
 
   def list(
             owner: String,
-            status: Option[SubmissionItemStatus],
+            status: Seq[SubmissionItemStatus],
+            failureType: Option[FailureTypeQuery],
             created: Option[LocalDate],
             limit: Int,
             offset: Int
           ): Action[AnyContent] = {
 
     authorised(owner, read).async {
-      submissionItemRepository.list(owner, status, created, limit, offset)
+      submissionItemRepository.list(owner, status, created, failureType, limit, offset)
         .map(listResult => Ok(Json.toJson(listResult)))
     }
   }
@@ -75,13 +79,22 @@ class SubmissionAdminController @Inject()(
     }
 
   def retry(owner: String, id: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
-    submissionItemRepository
-      .update(owner, id, SubmissionItemStatus.Submitted, None, None)
-      .flatTap(auditRetryRequest(_, request.retrieval))
+    retry(owner, id, request.retrieval)
       .as(Accepted)
       .recover {
-        case SubmissionItemRepository.NothingToUpdateException => NotFound
+        case SubmissionItemRepository.NothingToUpdateException =>
+          NotFound
       }
+  }
+
+  def retryTimeouts(owner: String): Action[AnyContent] = authorised(owner, write).async { implicit request =>
+    Mdc.preservingMdc {
+      submissionItemRepository.getTimedOutItems(owner).mapAsync(1) { item =>
+        retry(owner, item.id, request.retrieval).void
+      }.runWith(Sink.fold(0)((m, _) => m + 1))
+    }.map { count =>
+      Accepted(Json.obj("numberOfItemsRetried" -> count))
+    }
   }
 
   def dailySummaries(owner: String): Action[AnyContent] = authorised(owner, read).async {
@@ -90,11 +103,23 @@ class SubmissionAdminController @Inject()(
       .map(summaries => Ok(Json.obj("summaries" -> summaries)))
   }
 
+  def summary(owner: String): Action[AnyContent] = authorised(owner, read).async {
+    for {
+      errorSummary   <- submissionItemRepository.errorSummary(owner)
+      dailySummaries <- submissionItemRepository.dailySummariesV2(owner)
+    } yield Ok(Json.obj("errors" -> errorSummary, "summaries" -> dailySummaries))
+  }
+
   def listServices: Action[AnyContent] = Action.async {
     submissionItemRepository.owners.map { services =>
       Ok(Json.obj("services" -> services))
     }
   }
+
+  private def retry(owner: String, id: String, username: Username)(implicit hc: HeaderCarrier): Future[SubmissionItem] =
+    submissionItemRepository
+      .update(owner, id, SubmissionItemStatus.Submitted, None, None)
+      .flatTap(auditRetryRequest(_, username))
 
   private def auditRetryRequest(item: SubmissionItem, username: Username)(implicit hc: HeaderCarrier): Future[Done] =
     Future.successful {

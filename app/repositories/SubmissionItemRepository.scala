@@ -16,12 +16,14 @@
 
 package repositories
 
-import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, Done, ListResult}
+import models.submission.{FailureTypeQuery, QueryResult, SubmissionItem, SubmissionItemStatus}
+import models.{DailySummary, DailySummaryV2, Done, ErrorSummary, ListResult}
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.scaladsl.Source
 import org.bson.conversions.Bson
 import org.mongodb.scala.model._
 import play.api.Configuration
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsNull, JsObject, Json}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
@@ -80,7 +82,9 @@ class SubmissionItemRepository @Inject() (
     Codecs.playFormatSumCodecs(SubmissionItem.FailureType.format) ++
     Seq(
       Codecs.playFormatCodec(ListResult.format),
-      Codecs.playFormatCodec(DailySummary.mongoFormat)
+      Codecs.playFormatCodec(DailySummary.mongoFormat),
+      Codecs.playFormatCodec(DailySummaryV2.mongoFormat),
+      Codecs.playFormatCodec(ErrorSummary.format)
     )
   ) {
 
@@ -161,21 +165,35 @@ class SubmissionItemRepository @Inject() (
     }
 
   def list(owner: String,
-           status: Option[SubmissionItemStatus] = None,
+           status: Seq[SubmissionItemStatus] = Seq.empty,
            created: Option[LocalDate] = None,
+           failureType: Option[FailureTypeQuery] = None,
            limit: Int = 50,
            offset: Int = 0
           ): Future[ListResult] = {
 
     val ownerFilter = Filters.equal("owner", owner)
-    val statusFilter = status.toList.map(Filters.equal("status", _))
+
+    val statusFilter = Option.when(status.nonEmpty)(Filters.or(status.map(Filters.equal("status", _)): _*))
+
+    val failureTypeFilter = failureType.map {
+      case FailureTypeQuery.None =>
+        Filters.exists("failureType", exists = false)
+      case FailureTypeQuery.IsSet =>
+        Filters.exists("failureType", exists = true)
+      case FailureTypeQuery.These(failureTypes@_*) =>
+        failureTypes.map(Filters.eq("failureType", _))
+        .reduceLeft((m, n) => Filters.or(m, n))
+    }
+
     val createdFilter = created.toList.flatMap { date =>
       List(
         Filters.gte("created", date.atStartOfDay(ZoneOffset.UTC).toInstant),
         Filters.lt("created", date.atStartOfDay(ZoneOffset.UTC).plusDays(1).toInstant)
       )
     }
-    val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter).flatten: _*)
+
+    val filters = Filters.and(List(List(ownerFilter), statusFilter, createdFilter, failureTypeFilter).flatten: _*)
 
     val findCount =
       Json.obj(
@@ -289,6 +307,81 @@ class SubmissionItemRepository @Inject() (
     }
   }
 
+  def dailySummariesV2(owner: String): Future[Seq[DailySummaryV2]] = {
+
+    val processingStatuses = List(
+      SubmissionItemStatus.Submitted,
+      SubmissionItemStatus.Processed,
+      SubmissionItemStatus.Failed,
+      SubmissionItemStatus.Forwarded
+    )
+
+    Mdc.preservingMdc {
+      collection.aggregate[DailySummaryV2](List(
+        Aggregates.`match`(Filters.eq("owner", owner)),
+        Aggregates.group(
+          Json.obj("$dateTrunc" -> Json.obj("date" -> "$created", "unit" -> "day")).toDocument(),
+          Accumulators.sum("completed",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$and" -> Json.arr(
+                Json.obj("$eq" -> Json.arr("$status", SubmissionItemStatus.Completed: SubmissionItemStatus)),
+                Json.obj("$lt" -> Json.arr("$failureType", JsNull))
+              )),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          ),
+          Accumulators.sum("processing",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$in" -> Json.arr("$status", processingStatuses)),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          ),
+          Accumulators.sum("failed",
+            Json.obj("$cond" -> Json.obj(
+              "if" -> Json.obj("$and" -> Json.arr(
+                Json.obj("$eq" -> Json.arr("$status", SubmissionItemStatus.Completed: SubmissionItemStatus)),
+                Json.obj("$gt" -> Json.arr("$failureType", JsNull))
+              )),
+              "then" -> 1,
+              "else" -> 0
+            )).toDocument()
+          )
+        ),
+        Aggregates.project(
+          Json.obj(
+            "date" -> "$_id",
+            "_id" -> 0,
+            "completed" -> 1,
+            "processing" -> 1,
+            "failed" -> 1
+          ).toDocument()
+        )
+      )).toFuture()
+    }
+  }
+
+  def errorSummary(owner: String): Future[ErrorSummary] = Mdc.preservingMdc {
+    collection.aggregate[ErrorSummary](Seq(
+      Aggregates.`match`(Filters.and(
+        Filters.eq("owner", owner),
+        Filters.eq("status", SubmissionItemStatus.Completed),
+        Filters.exists("failureType")
+      )),
+      Aggregates.facet(
+        Facet("sdesFailureCount", Aggregates.`match`(Filters.eq("failureType", SubmissionItem.FailureType.Sdes)), Aggregates.count()),
+        Facet("timeoutFailureCount", Aggregates.`match`(Filters.eq("failureType", SubmissionItem.FailureType.Timeout)), Aggregates.count())
+      ),
+      Aggregates.unwind("$sdesFailureCount", UnwindOptions().preserveNullAndEmptyArrays(true)),
+      Aggregates.unwind("$timeoutFailureCount", UnwindOptions().preserveNullAndEmptyArrays(true)),
+      Aggregates.project(Json.obj(
+        "sdesFailureCount" -> Json.obj("$ifNull" -> Json.arr("$sdesFailureCount.count", 0)),
+        "timeoutFailureCount" -> Json.obj("$ifNull" -> Json.arr("$timeoutFailureCount.count", 0))
+      ).toDocument())
+    )).head()
+  }
+
   def owners: Future[Set[String]] =
     Mdc.preservingMdc {
       collection.distinct[String]("owner").toFuture().map(_.toSet)
@@ -313,6 +406,17 @@ class SubmissionItemRepository @Inject() (
         .map(_.getModifiedCount)
         .head()
     }
+  }
+
+  def getTimedOutItems(owner: String): Source[SubmissionItem, NotUsed] = {
+
+    val filter = Filters.and(
+      Filters.eq("owner", owner),
+      Filters.eq("status", SubmissionItemStatus.Completed),
+      Filters.eq("failureType", SubmissionItem.FailureType.Timeout)
+    )
+
+    Source.fromPublisher(collection.find(filter))
   }
 }
 

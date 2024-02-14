@@ -17,8 +17,9 @@
 package repositories
 
 import cats.implicits.toTraverseOps
-import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
-import models.{DailySummary, SubmissionSummary}
+import models.submission._
+import models.{DailySummary, DailySummaryV2, ErrorSummary, SubmissionSummary}
+import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
@@ -231,9 +232,26 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
 
       List(item1, item2, item3).traverse(insert).futureValue
 
-      val result = repository.list("owner", status = Some(SubmissionItemStatus.Failed)).futureValue
+      val result = repository.list("owner", status = Seq(SubmissionItemStatus.Failed)).futureValue
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 1
+    }
+
+    "must return a items with any of the statuses supplied" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed)
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed)
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", owner = "some-other-owner")
+
+      List(item1, item2, item3).traverse(insert).futureValue
+
+      val result = repository.list("owner", status = Seq(SubmissionItemStatus.Failed, SubmissionItemStatus.Completed)).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
     }
 
     "must return a list of items filtered by the day the item was created" in {
@@ -249,18 +267,98 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       result.totalCount mustEqual 1
     }
 
+    "must return a list of items filtered by failure type" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(FailureTypeQuery.These(SubmissionItem.FailureType.Timeout))).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
+    }
+
+    "must return a list of items filtered by multiple failure types" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(FailureTypeQuery.These(SubmissionItem.FailureType.Timeout, SubmissionItem.FailureType.Sdes))).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item1),
+        SubmissionSummary(item2),
+        SubmissionSummary(item3)
+      )
+
+      result.totalCount mustEqual 3
+    }
+
+    "must return a list of items with any failure type when passed FailureTypeQuery.IsSet" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(FailureTypeQuery.IsSet)).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item1),
+        SubmissionSummary(item2),
+        SubmissionSummary(item3)
+      )
+
+      result.totalCount mustEqual 3
+    }
+
+    "must only return items without a failure type when FailureTypeQuery.None is passed" in {
+
+      val item1 = item.copy(id = "id1", sdesCorrelationId = "correlationId1", status = SubmissionItemStatus.Failed)
+      val item2 = item.copy(id = "id2", sdesCorrelationId = "correlationId2", status = SubmissionItemStatus.Completed)
+      val item3 = item.copy(id = "id3", sdesCorrelationId = "correlationId3", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      val item4 = item.copy(id = "id4", sdesCorrelationId = "correlationId4", owner = "some-other-owner")
+
+      List(item1, item2, item3, item4).traverse(insert).futureValue
+
+      val result = repository.list("owner", failureType = Some(FailureTypeQuery.None)).futureValue
+      result.summaries must contain theSameElementsAs Seq(
+        SubmissionSummary(item2),
+        SubmissionSummary(item1)
+      )
+
+      result.totalCount mustEqual 2
+    }
+
     "must apply all filters" in {
 
-      val item1 = randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed)
+      val item1 = randomItem.copy(
+        owner = "owner",
+        created = clock.instant().minus(Duration.ofDays(2)),
+        status = SubmissionItemStatus.Completed,
+        failureType = Some(SubmissionItem.FailureType.Sdes)
+      )
 
       List(
         item1,
         randomItem.copy(owner = "owner", created = clock.instant(), status = SubmissionItemStatus.Completed),
         randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Forwarded),
         randomItem.copy(owner = "owner2", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
+        randomItem.copy(owner = "owner", created = clock.instant().minus(Duration.ofDays(2)), status = SubmissionItemStatus.Completed),
       ).traverse(insert).futureValue
 
-      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Some(SubmissionItemStatus.Completed)).futureValue
+      val result = repository.list("owner", created = Some(LocalDate.now(clock).minusDays(2)), status = Seq(SubmissionItemStatus.Completed), failureType = Some(FailureTypeQuery.These(SubmissionItem.FailureType.Sdes))).futureValue
       result.summaries must contain only SubmissionSummary(item1)
       result.totalCount mustEqual 1
     }
@@ -551,6 +649,77 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     mustPreserveMdc(repository.dailySummaries("my-service"))
   }
 
+  "dailySummariesV2" - {
+
+    "must return a summary for every day where there are records" in {
+
+      List(
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes), created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant().plus(12, ChronoUnit.MINUTES)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Failed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Processed, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Submitted, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Forwarded, created = clock.instant()),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, created = clock.instant().minus(Duration.ofDays(10))),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, created = clock.instant())
+      ).traverse(repository.insert)
+        .futureValue
+
+      val result = repository.dailySummariesV2("my-service").futureValue
+
+      result must contain theSameElementsAs List(
+        DailySummaryV2(date = LocalDate.now(clock), processing = 4, completed = 2, failed = 2),
+        DailySummaryV2(date = LocalDate.now(clock).minusDays(10), processing = 0, completed = 1, failed = 0)
+      )
+    }
+
+    mustPreserveMdc(repository.dailySummariesV2("my-service"))
+  }
+
+  "errorSummary" - {
+
+    "must return a summary of errored items for a particular owner" in {
+
+      List(
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "other-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Sdes)),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Submitted),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Processed),
+        randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Forwarded)
+      ).traverse(repository.insert).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 2, timeoutFailureCount = 1)
+    }
+
+    "must return when there are only timeout errors" in {
+
+      val item = randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout))
+      repository.insert(item).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 0, timeoutFailureCount = 1)
+    }
+
+    "must return when there are only sdes errors" in {
+
+      val item = randomItem.copy(owner = "my-service", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes))
+      repository.insert(item).futureValue
+
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(sdesFailureCount = 1, timeoutFailureCount = 0)
+    }
+
+    "must return an empty summary if there are no errored items" in {
+      repository.errorSummary("my-service").futureValue mustEqual ErrorSummary(0, 0)
+    }
+
+    mustPreserveMdc(repository.errorSummary("my-service"))
+  }
+
   "owners" - {
 
     "must return a set of all owners" in {
@@ -604,6 +773,27 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
     }
 
     mustPreserveMdc(repository.failTimedOutItems)
+  }
+
+  "getTimedOutItems" - {
+
+    "must return all timed out items for the given owner" in {
+
+      val item1 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item2 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item3 = randomItem.copy(owner = "owner2", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+      val item4 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Completed, failureType = Some(SubmissionItem.FailureType.Sdes), failureReason = Some("reason"))
+      val item5 = randomItem.copy(owner = "owner", status = SubmissionItemStatus.Failed, failureType = Some(SubmissionItem.FailureType.Timeout), failureReason = Some("reason"))
+
+      clock.set(now)
+      List(item1, item2, item3, item4, item5).traverse(repository.insert).futureValue
+
+      val result = repository.getTimedOutItems("owner").runWith(Sink.collection)(app.materializer).futureValue.toSeq
+
+      result.length mustBe 2
+      result must contain(item1)
+      result must contain(item2)
+    }
   }
 
   private def randomItem: SubmissionItem = item.copy(
