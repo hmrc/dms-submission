@@ -36,7 +36,7 @@ class FailedItemWorker @Inject()(
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.failed-item-worker.interval")
-  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.failed-item-worker.initial-delay")
 
   private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
     callbackService.notifyFailedItems()

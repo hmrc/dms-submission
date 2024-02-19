@@ -74,10 +74,14 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
     )
     .configure(
       "internal-auth.token" -> dmsSubmissionAuthToken,
-      "workers.initial-delay" -> "0 seconds",
       "workers.sdes-notification-worker.interval" -> "1 second",
+      "workers.sdes-notification-worker.initial-delay" -> "0 seconds",
       "workers.processed-item-worker.interval" -> "1 second",
+      "workers.processed-item-worker.initial-delay" -> "0 seconds",
       "workers.failed-item-worker.interval" -> "1 second",
+      "workers.failed-item-worker.initial-delay" -> "0 seconds",
+      "workers.item-timeout-worker.interval" -> "1 second",
+      "workers.item-timeout-worker.initial-delay" -> "0 seconds",
       "create-internal-auth-token-on-start" -> false
     )
     .build()

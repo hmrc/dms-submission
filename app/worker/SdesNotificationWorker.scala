@@ -36,7 +36,7 @@ class SdesNotificationWorker @Inject()(
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.sdes-notification-worker.interval")
-  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.sdes-notification-worker.initial-delay")
 
   private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
     sdesService.notifySubmittedItems()

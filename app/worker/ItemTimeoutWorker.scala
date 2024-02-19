@@ -39,7 +39,7 @@ class ItemTimeoutWorker @Inject() (
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.item-timeout-worker.interval")
-  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.item-timeout-worker.initial-delay")
   private val lockTtl = configuration.get[FiniteDuration]("workers.item-timeout-worker.lock-ttl")
 
   private val lockService = LockService(
