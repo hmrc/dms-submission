@@ -73,11 +73,16 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
       bind[UuidService].toInstance(mockUuidService),
     )
     .configure(
+      "item-timeout" -> "3 seconds",
       "internal-auth.token" -> dmsSubmissionAuthToken,
-      "workers.initial-delay" -> "0 seconds",
       "workers.sdes-notification-worker.interval" -> "1 second",
+      "workers.sdes-notification-worker.initial-delay" -> "0 seconds",
       "workers.processed-item-worker.interval" -> "1 second",
+      "workers.processed-item-worker.initial-delay" -> "0 seconds",
       "workers.failed-item-worker.interval" -> "1 second",
+      "workers.failed-item-worker.initial-delay" -> "0 seconds",
+      "workers.item-timeout-worker.interval" -> "1 second",
+      "workers.item-timeout-worker.initial-delay" -> "0 seconds",
       "create-internal-auth-token-on-start" -> false
     )
     .build()
@@ -171,7 +176,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
         .willReturn(aResponse().withStatus(OK))
     )
 
-    configureFailedCallback(s"$sdesCorrelationId.zip")
+    configureFailedCallback(s"$sdesCorrelationId.zip", "unavailable")
 
     val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
       .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
@@ -210,6 +215,68 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
       server.verify(1, postRequestedFor(urlMatching("/callback"))
         .withRequestBody(matchingJsonPath("$.id", equalTo(responseBody.id)))
         .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Failed.toString)))
+        .withRequestBody(matchingJsonPath("$.failureType", equalTo("sdes")))
+      )
+    }
+  }
+
+  "Timed out submissions must respond to the callbackUrl with a `Failed` status" in {
+
+    val submissionReference = "000000000002"
+    val sdesCorrelationId = UUID.randomUUID().toString
+    val timeOfReceipt = LocalDateTime.now()
+
+    when(mockSubmissionReferenceService.random())
+      .thenReturn(submissionReference)
+
+    when(mockUuidService.random())
+      .thenReturn(sdesCorrelationId)
+
+    server.stubFor(
+      post(urlMatching("/callback"))
+        .willReturn(aResponse().withStatus(OK))
+    )
+
+    configureFailedCallback(s"$sdesCorrelationId.zip", "received")
+
+    val response = httpClient.url(s"http://localhost:$port/dms-submission/submit")
+      .withHttpHeaders(AUTHORIZATION -> clientAuthToken)
+      .post(
+        Source(Seq(
+          DataPart("submissionReference", submissionReference),
+          DataPart("callbackUrl", s"http://localhost:${server.port()}/callback"),
+          DataPart("metadata.store", "true"),
+          DataPart("metadata.source", "api-tests"),
+          DataPart("metadata.timeOfReceipt", DateTimeFormatter.ISO_DATE_TIME.format(timeOfReceipt)),
+          DataPart("metadata.formId", "formId"),
+          DataPart("metadata.customerId", "customerId"),
+          DataPart("metadata.submissionMark", "submissionMark"),
+          DataPart("metadata.casKey", "casKey"),
+          DataPart("metadata.classificationType", "classificationType"),
+          DataPart("metadata.businessArea", "businessArea"),
+          FilePart(
+            key = "form",
+            filename = "form.pdf",
+            contentType = Some("application/octet-stream"),
+            ref = Source.single(pdfBytes),
+          ),
+          FilePart(
+            key = "attachment",
+            filename = "extra.pdf",
+            contentType = Some("application/pdf"),
+            ref = Source.single(ByteString.fromString("Hello, World!"))
+          )
+        ))
+      ).futureValue
+
+    response.status mustEqual ACCEPTED
+    val responseBody = response.body[JsValue].as[SubmissionResponse.Success]
+
+    eventually(Timeout(Span(30, Seconds))) {
+      server.verify(1, postRequestedFor(urlMatching("/callback"))
+        .withRequestBody(matchingJsonPath("$.id", equalTo(responseBody.id)))
+        .withRequestBody(matchingJsonPath("$.status", equalTo(SubmissionItemStatus.Failed.toString)))
+        .withRequestBody(matchingJsonPath("$.failureType", equalTo("timeout")))
       )
     }
   }
@@ -258,9 +325,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
     response.status == OK
   }
 
-  private def configureFailedCallback(filename: String): Unit = {
+  private def configureFailedCallback(filename: String, failure: String): Unit = {
     val encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8)
-    val response = httpClient.url(s"$sdesStubBaseUrl/sdes-stub/configure/notification/fileready?file=$encodedFilename&callback=unavailable")
+    val response = httpClient.url(s"$sdesStubBaseUrl/sdes-stub/configure/notification/fileready?file=$encodedFilename&callback=$failure")
       .post(Json.obj())
       .futureValue
     response.status mustEqual NO_CONTENT

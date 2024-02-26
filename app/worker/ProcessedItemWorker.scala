@@ -36,7 +36,7 @@ class ProcessedItemWorker @Inject()(
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.processed-item-worker.interval")
-  private val initialDelay = configuration.get[FiniteDuration]("workers.initial-delay")
+  private val initialDelay = configuration.get[FiniteDuration]("workers.processed-item-worker.initial-delay")
 
   private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
     callbackService.notifyProcessedItems()
