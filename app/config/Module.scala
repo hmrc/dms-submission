@@ -16,11 +16,13 @@
 
 package config
 
+import connectors.SdesCircuitBreakerProvider
+import connectors.SdesConnector.SdesCircuitBreaker
 import play.api.inject.Binding
 import play.api.{Configuration, Environment}
 import services.FileService
 import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
-import worker.{FailedItemWorker, ItemTimeoutWorker, MetricOrchestratorWorker, ProcessedItemWorker, SdesNotificationWorker}
+import worker._
 
 import java.time.Clock
 
@@ -45,7 +47,8 @@ class Module extends play.api.inject.Module {
       bind[ProcessedItemWorker].toSelf.eagerly(),
       bind[FailedItemWorker].toSelf.eagerly(),
       bind[SdesNotificationWorker].toSelf.eagerly(),
-      bind[ItemTimeoutWorker].toSelf.eagerly()
+      bind[ItemTimeoutWorker].toSelf.eagerly(),
+      bind[SdesCircuitBreaker].toProvider[SdesCircuitBreakerProvider]
     ) ++ authTokenInitialiserBindings ++ metricOrchestratorWorkerBindings
   }
 }

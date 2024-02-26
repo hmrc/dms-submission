@@ -17,9 +17,11 @@
 package connectors
 
 import config.Service
+import connectors.SdesConnector.SdesCircuitBreaker
 import logging.Logging
 import models.Done
 import models.sdes.FileNotifyRequest
+import org.apache.pekko.pattern.CircuitBreaker
 import play.api.Configuration
 import play.api.http.Status.NO_CONTENT
 import play.api.libs.json.Json
@@ -34,7 +36,8 @@ import scala.util.control.NoStackTrace
 @Singleton
 class SdesConnector @Inject() (
                                 httpClient: HttpClientV2,
-                                configuration: Configuration
+                                configuration: Configuration,
+                                sdesCircuitBreaker: SdesCircuitBreaker
                               )(implicit ec: ExecutionContext) extends Logging {
 
   private val service: Service = configuration.get[Service]("microservice.services.sdes")
@@ -42,7 +45,7 @@ class SdesConnector @Inject() (
   private val path: Option[String] = Some(configuration.get[String]("microservice.services.sdes.path")).filter(_.nonEmpty)
   private val baseUrl: String = List(Some(service.baseUrl), path).flatten.mkString("/")
 
-  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] = {
+  def notify(request: FileNotifyRequest)(implicit hc: HeaderCarrier): Future[Done] = sdesCircuitBreaker.breaker.withCircuitBreaker {
     httpClient
       .post(url"$baseUrl/notification/fileready")
       .withBody(Json.toJson(request))
@@ -64,4 +67,6 @@ object SdesConnector {
   final case class UnexpectedResponseException(status: Int, body: String) extends Exception with NoStackTrace {
     override def getMessage: String = s"Unexpected response from SDES, status: $status, body: $body"
   }
+
+  final case class SdesCircuitBreaker(breaker: CircuitBreaker)
 }
