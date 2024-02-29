@@ -18,29 +18,38 @@ package connectors
 
 import com.github.tomakehurst.wiremock.client.WireMock._
 import com.github.tomakehurst.wiremock.http.Fault
+import connectors.SdesConnector.SdesCircuitBreaker
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
+import org.scalatestplus.play.guice.GuiceOneAppPerTest
 import play.api.Application
 import play.api.http.Status.{INTERNAL_SERVER_ERROR, NO_CONTENT}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
+import play.api.test.Helpers.running
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.play.http.HeaderCarrierConverter
 import util.WireMockHelper
 
-class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with WireMockHelper {
+import java.time.LocalDate
+import scala.concurrent.Promise
+import scala.concurrent.duration._
 
-  private lazy val app: Application =
+class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with IntegrationPatience with GuiceOneAppPerTest with WireMockHelper {
+
+  override def fakeApplication(): Application =
     GuiceApplicationBuilder()
       .configure(
         "microservice.services.sdes.port" -> server.port(),
         "microservice.services.sdes.path" -> "",
-        "services.sdes.client-id" -> "client-id"
+        "services.sdes.client-id" -> "client-id",
+        "services.sdes.max-failures" -> 1,
+        "services.sdes.reset-timeout" -> "1 second",
+        "services.sdes.call-timeout" -> "30 seconds"
       )
       .build()
-
-  private lazy val connector = app.injector.instanceOf[SdesConnector]
 
   "notify" - {
 
@@ -62,6 +71,8 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
 
     "must return Done when SDES responds with NO_CONTENT" in {
 
+      val connector = app.injector.instanceOf[SdesConnector]
+
       server.stubFor(
         post(urlMatching(url))
           .withRequestBody(equalToJson(Json.stringify(Json.toJson(request))))
@@ -73,6 +84,8 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
     }
 
     "must return a failed future when SDES responds with anything else" in {
+
+      val connector = app.injector.instanceOf[SdesConnector]
 
       server.stubFor(
         post(urlMatching(url))
@@ -86,6 +99,7 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
     }
 
     "must return a failed future when there is a connection error" in {
+      val connector = app.injector.instanceOf[SdesConnector]
 
       server.stubFor(
         post(urlMatching(url))
@@ -107,16 +121,45 @@ class SdesConnectorSpec extends AnyFreeSpec with Matchers with ScalaFutures with
         )
         .build()
 
+      running(app) {
+
+        val connector = app.injector.instanceOf[SdesConnector]
+
+        server.stubFor(
+          post(urlMatching(s"/sdes-stub$url"))
+            .withRequestBody(equalToJson(Json.stringify(Json.toJson(request))))
+            .withHeader("x-client-id", equalTo("client-id"))
+            .willReturn(aResponse().withStatus(NO_CONTENT))
+        )
+
+        connector.notify(request)(hc).futureValue
+      }
+    }
+
+    "must fail fast when the circuit breaker is open" in {
+
       val connector = app.injector.instanceOf[SdesConnector]
+      val circuitBreaker = app.injector.instanceOf[SdesCircuitBreaker].breaker
+
+      circuitBreaker.resetTimeout mustEqual 1.second
 
       server.stubFor(
-        post(urlMatching(s"/sdes-stub$url"))
+        post(urlMatching(url))
           .withRequestBody(equalToJson(Json.stringify(Json.toJson(request))))
           .withHeader("x-client-id", equalTo("client-id"))
-          .willReturn(aResponse().withStatus(NO_CONTENT))
+          .willReturn(aResponse().withBody("body").withStatus(INTERNAL_SERVER_ERROR))
       )
 
-      connector.notify(request)(hc).futureValue
+      val onOpen = Promise[Unit]
+      circuitBreaker.onOpen(onOpen.success(System.currentTimeMillis()))
+
+      circuitBreaker.isOpen mustBe false
+      connector.notify(request)(hc).failed.futureValue
+      onOpen.future.futureValue
+      circuitBreaker.isOpen mustBe true
+      connector.notify(request)(hc).failed.futureValue
+
+      server.verify(1, postRequestedFor(urlMatching(url)))
     }
   }
 }

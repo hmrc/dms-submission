@@ -16,6 +16,7 @@
 
 package worker
 
+import logging.Logging
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
@@ -31,16 +32,23 @@ class SdesNotificationWorker @Inject()(
                                         sdesService: SdesService,
                                         lifecycle: ApplicationLifecycle,
                                         actorSystem: ActorSystem
-                                      )(implicit ec: ExecutionContext) {
+                                      )(implicit ec: ExecutionContext) extends Logging {
 
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.sdes-notification-worker.interval")
   private val initialDelay = configuration.get[FiniteDuration]("workers.sdes-notification-worker.initial-delay")
+  private val enabled = configuration.get[Boolean]("workers.sdes-notification-worker.enabled")
 
-  private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
-    sdesService.notifySubmittedItems()
+  if (enabled) {
+
+    logger.info("Starting SdesNotificationWorker")
+    val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
+      sdesService.notifySubmittedItems()
+    }
+
+    lifecycle.addStopHook(() => Future.successful(cancel.cancel()))
+  } else {
+    logger.info("SdesNotificationWorker disabled")
   }
-
-  lifecycle.addStopHook(() => Future.successful(cancel.cancel()))
 }
