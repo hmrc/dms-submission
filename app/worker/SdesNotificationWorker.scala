@@ -25,6 +25,7 @@ import services.SdesService
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success}
 
 @Singleton
 class SdesNotificationWorker @Inject()(
@@ -44,7 +45,10 @@ class SdesNotificationWorker @Inject()(
 
     logger.info("Starting SdesNotificationWorker")
     val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
-      sdesService.notifySubmittedItems()
+      sdesService.notifySubmittedItems().onComplete {
+        case Success(_) => ()
+        case Failure(e) => logger.error("Error when sending SDES notifications", e)
+      }
     }
 
     lifecycle.addStopHook(() => Future.successful(cancel.cancel()))

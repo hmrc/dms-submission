@@ -28,6 +28,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import java.util.Base64
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 @Singleton
 class SdesService @Inject() (
@@ -45,7 +46,7 @@ class SdesService @Inject() (
       notify(item)(HeaderCarrier()).map { _ =>
         item.copy(status = SubmissionItemStatus.Forwarded)
       }
-    }.recover { case e =>
+    }.recover { case NonFatal(e) =>
       logger.error("Error notifying SDES about a submitted item", e)
       QueryResult.Found
     }

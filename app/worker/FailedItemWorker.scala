@@ -16,6 +16,7 @@
 
 package worker
 
+import logging.Logging
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
@@ -24,6 +25,7 @@ import services.CallbackService
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 @Singleton
 class FailedItemWorker @Inject()(
@@ -31,7 +33,7 @@ class FailedItemWorker @Inject()(
                                   callbackService: CallbackService,
                                   lifecycle: ApplicationLifecycle,
                                   actorSystem: ActorSystem
-                                )(implicit ec: ExecutionContext) {
+                                )(implicit ec: ExecutionContext) extends Logging {
 
   private val scheduler = actorSystem.scheduler
 
@@ -39,7 +41,10 @@ class FailedItemWorker @Inject()(
   private val initialDelay = configuration.get[FiniteDuration]("workers.failed-item-worker.initial-delay")
 
   private val cancel = scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
-    callbackService.notifyFailedItems()
+    callbackService.notifyFailedItems().onComplete {
+      case Success(_) => ()
+      case Failure(e) => logger.error("Error while processing failed items", e)
+    }
   }
 
   lifecycle.addStopHook(() => Future.successful(cancel.cancel()))

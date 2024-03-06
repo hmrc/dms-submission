@@ -16,6 +16,7 @@
 
 package worker
 
+import logging.Logging
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
@@ -24,6 +25,7 @@ import uk.gov.hmrc.mongo.metrix.MetricOrchestrator
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 @Singleton
 class MetricOrchestratorWorker @Inject()(
@@ -31,14 +33,17 @@ class MetricOrchestratorWorker @Inject()(
                                           metricOrchestrator: MetricOrchestrator,
                                           lifecycle: ApplicationLifecycle,
                                           actorSystem: ActorSystem
-                                        )(implicit ec: ExecutionContext) {
+                                        )(implicit ec: ExecutionContext) extends Logging {
 
   private val scheduler = actorSystem.scheduler
 
   private val interval = configuration.get[FiniteDuration]("workers.metric-orchestrator-worker.interval")
 
   private val cancel = scheduler.scheduleWithFixedDelay(0.seconds, interval) { () =>
-    metricOrchestrator.attemptMetricRefresh()
+    metricOrchestrator.attemptMetricRefresh().onComplete {
+      case Success(_) => ()
+      case Failure(e) => logger.error("Error when updating metrics", e)
+    }
   }
 
   lifecycle.addStopHook(() => Future.successful(cancel.cancel()))

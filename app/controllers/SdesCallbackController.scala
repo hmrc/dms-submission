@@ -53,8 +53,9 @@ class SdesCallbackController @Inject() (
       submissionItemRepository.get(request.body.correlationID).flatMap {
         _.map { item =>
           if (isLocked(item)) {
-            logger.warn(s"correlationId: ${request.body.correlationID} was locked!")
-            Future.failed(SubmissionLockedException(item.sdesCorrelationId))
+            val exception = SubmissionLockedException(item.sdesCorrelationId)
+            logger.warn(s"correlationId: ${request.body.correlationID} was locked!", exception)
+            Future.failed(exception)
           } else {
             getNewItemStatus(request.body.notification).map { newStatus =>
 
