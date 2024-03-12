@@ -21,6 +21,7 @@ import logging.Logging
 import models.Done
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
 import models.submission.{QueryResult, SubmissionItem, SubmissionItemStatus}
+import org.apache.pekko.pattern.CircuitBreakerOpenException
 import play.api.Configuration
 import repositories.SubmissionItemRepository
 import uk.gov.hmrc.http.HeaderCarrier
@@ -46,7 +47,7 @@ class SdesService @Inject() (
       notify(item)(HeaderCarrier()).map { _ =>
         item.copy(status = SubmissionItemStatus.Forwarded)
       }
-    }.recover { case NonFatal(e) =>
+    }.recover { case NonFatal(e) if !e.isInstanceOf[CircuitBreakerOpenException] =>
       logger.error("Error notifying SDES about a submitted item", e)
       QueryResult.Found
     }

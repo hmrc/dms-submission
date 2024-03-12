@@ -20,6 +20,7 @@ import connectors.SdesConnector
 import models.Done
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
+import org.apache.pekko.pattern.CircuitBreakerOpenException
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, times, verify, when}
@@ -40,6 +41,7 @@ import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant}
 import java.util.UUID
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 class SdesServiceSpec extends AnyFreeSpec with Matchers
   with DefaultPlayMongoRepositorySupport[SubmissionItem]
@@ -138,6 +140,20 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
       val updatedItem = repository.get(item.sdesCorrelationId).futureValue.value
       updatedItem.status mustEqual SubmissionItemStatus.Submitted
     }
+
+    "must fail when the call to SDES fails early because of the circuit breaker" in {
+
+      val item = randomItem
+      val error = new CircuitBreakerOpenException(10.seconds)
+
+      when(mockSdesConnector.notify(any())(any())).thenReturn(Future.failed(error))
+
+      repository.insert(item).futureValue
+      service.notifyOldestSubmittedItem().failed.futureValue mustBe error
+
+      val updatedItem = repository.get(item.sdesCorrelationId).futureValue.value
+      updatedItem.status mustEqual SubmissionItemStatus.Submitted
+    }
   }
 
   "notifySubmittedItems" - {
@@ -185,6 +201,30 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
       repository.get(item1.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Forwarded
       repository.get(item2.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Submitted
       repository.get(item3.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Forwarded
+    }
+
+    "must not continue to notify other items when the connector fails with a circuit breaker error" in {
+
+      val item1 = randomItem
+      val item2 = randomItem
+      val item3 = randomItem
+      val error = new CircuitBreakerOpenException(10.seconds)
+
+      when(mockSdesConnector.notify(any())(any()))
+        .thenReturn(Future.successful(Done))
+        .thenReturn(Future.failed(error))
+
+      repository.insert(item1).futureValue
+      repository.insert(item2).futureValue
+      repository.insert(item3).futureValue
+
+      service.notifySubmittedItems().failed.futureValue mustBe error
+
+      verify(mockSdesConnector, times(2)).notify(any())(any())
+
+      repository.get(item1.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Forwarded
+      repository.get(item2.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Submitted
+      repository.get(item3.sdesCorrelationId).futureValue.value.status mustEqual SubmissionItemStatus.Submitted
     }
   }
 }
