@@ -26,6 +26,7 @@ import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 @Singleton
 class ItemTimeoutWorker @Inject() (
@@ -55,6 +56,9 @@ class ItemTimeoutWorker @Inject() (
           logger.warn(s"Timed out $numberOfTimedOutItems items")
         }
       }
+    }.onComplete {
+      case Success(_) => ()
+      case Failure(e) => logger.error("Error while processing timed out items", e)
     }
   }
 

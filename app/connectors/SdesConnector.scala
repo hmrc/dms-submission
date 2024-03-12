@@ -52,11 +52,12 @@ class SdesConnector @Inject() (
       .setHeader("x-client-id" -> clientId)
       .execute
       .flatMap { response =>
-        logger.debug(Json.stringify(Json.obj("request" -> request, "status" -> response.status)))
         if (response.status == NO_CONTENT) {
           Future.successful(Done)
         } else {
-          Future.failed(SdesConnector.UnexpectedResponseException(response.status, response.body))
+          val exception = SdesConnector.UnexpectedResponseException(response.status, response.body)
+          logger.warn("Unexpected response", exception)
+          Future.failed(exception)
         }
       }
   }

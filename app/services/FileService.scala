@@ -22,14 +22,12 @@ import com.codahale.metrics.{Gauge, MetricRegistry}
 import config.FileSystemExecutionContext
 import logging.Logging
 import play.api.Configuration
-import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
-import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import java.io.IOException
 import java.nio.file.Files
-import java.time.Clock
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 @Singleton
 class FileService @Inject() (
@@ -49,8 +47,8 @@ class FileService @Inject() (
         try {
           workDir.delete()
           logger.debug(s"Deleted working dir at ${workDir.pathAsString}")
-        } catch { case e: Throwable =>
-          logger.error(s"Failed to delete working dir at ${workDir.pathAsString}", e)
+        } catch { case NonFatal(e) =>
+          logger.warn(s"Failed to delete working dir at ${workDir.pathAsString}", e)
         }
       }(fileSystemExecutionContext)
       future

@@ -27,6 +27,7 @@ import java.time.{Clock, Duration}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Success
+import scala.util.control.NonFatal
 
 @Singleton
 class CallbackService @Inject() (
@@ -44,7 +45,7 @@ class CallbackService @Inject() (
         item.copy(status = SubmissionItemStatus.Completed)
       }
       updateTimerForItem(item, result)
-    }.recover { case e =>
+    }.recover { case NonFatal(e) =>
       logger.error("Error notifying the callback url for an item", e)
       QueryResult.Found
     }
@@ -62,7 +63,7 @@ class CallbackService @Inject() (
         item.copy(status = SubmissionItemStatus.Completed)
       }
       updateTimerForItem(item, result)
-    }.recover { case e =>
+    }.recover { case NonFatal(e) =>
       logger.error("Error notifying the callback url for an item", e)
       QueryResult.Found
     }

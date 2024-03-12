@@ -16,6 +16,7 @@
 
 package connectors
 
+import logging.Logging
 import models.Done
 import models.submission.{NotificationRequest, SubmissionItem}
 import play.api.Configuration
@@ -33,7 +34,7 @@ import scala.util.control.NoStackTrace
 class CallbackConnector @Inject() (
                                     httpClient: HttpClientV2,
                                     configuration: Configuration
-                                  )(implicit ec: ExecutionContext) {
+                                  )(implicit ec: ExecutionContext) extends Logging {
 
   private val internalAuthToken: String = configuration.get[String]("internal-auth.token")
 
@@ -47,7 +48,9 @@ class CallbackConnector @Inject() (
         if (response.status == OK) {
           Future.successful(Done)
         } else {
-          Future.failed(CallbackConnector.UnexpectedResponseException(response.status, response.body))
+          val exception = CallbackConnector.UnexpectedResponseException(response.status, response.body)
+          logger.warn("Error sending callback to calling service", exception)
+          Future.failed(exception)
         }
       }
   }
