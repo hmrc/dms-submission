@@ -19,10 +19,12 @@ package config
 import logging.Logging
 import models.Done
 import play.api.Configuration
+import play.api.http.Status.{NOT_FOUND, OK}
 import play.api.libs.json.Json
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
-import uk.gov.hmrc.http.client.HttpClientV2
+import services.RetryService
 import uk.gov.hmrc.http.HttpReads.Implicits.readRaw
+import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.DurationInt
@@ -40,7 +42,8 @@ class NoOpInternalAuthTokenInitialiser @Inject() () extends InternalAuthTokenIni
 @Singleton
 class InternalAuthTokenInitialiserImpl @Inject() (
                                                configuration: Configuration,
-                                               httpClient: HttpClientV2
+                                               httpClient: HttpClientV2,
+                                               retryService: RetryService
                                              )(implicit ec: ExecutionContext) extends InternalAuthTokenInitialiser with Logging {
 
   private val internalAuthService: Service =
@@ -53,9 +56,9 @@ class InternalAuthTokenInitialiserImpl @Inject() (
     configuration.get[String]("appName")
 
   override val initialised: Future[Done] =
-    ensureAuthToken()
+    retryService.retry(ensureAuthToken(), delay = 30.seconds, maxAttempts = 10)
 
-  Await.result(initialised, 30.seconds)
+  Await.result(initialised, 5.minutes)
 
   private def ensureAuthToken(): Future[Done] = {
     authTokenIsValid.flatMap { isValid =>
@@ -98,6 +101,12 @@ class InternalAuthTokenInitialiserImpl @Inject() (
     httpClient.get(url"${internalAuthService.baseUrl}/test-only/token")(HeaderCarrier())
       .setHeader("Authorization" -> authToken)
       .execute
-      .map(_.status == 200)
+      .flatMap {
+        _.status match {
+          case OK        => Future.successful(true)
+          case NOT_FOUND => Future.successful(false)
+          case _         => Future.failed(new RuntimeException("Unexpected response"))
+        }
+      }
   }
 }
