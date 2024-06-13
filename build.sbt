@@ -3,8 +3,7 @@ import uk.gov.hmrc.DefaultBuildSettings
 import uk.gov.hmrc.DefaultBuildSettings.targetJvm
 
 ThisBuild / majorVersion := 0
-ThisBuild / scalaVersion := "2.13.12"
-ThisBuild / targetJvm := "jvm-11"
+ThisBuild / scalaVersion := "3.3.3"
 
 lazy val microservice = Project("dms-submission", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin, BuildInfoPlugin)
@@ -15,8 +14,6 @@ lazy val microservice = Project("dms-submission", file("."))
     // suppress warnings in generated routes files
     scalacOptions += s"-Wconf:src=routes/.*:s,src=src_managed/.*:s",
     PlayKeys.playDefaultPort := 8222,
-    addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
-    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     buildInfoKeys := Seq[BuildInfoKey](name, version, PlayKeys.playDefaultPort),
     buildInfoPackage := "buildinfo",
     RoutesKeys.routesImport ++= Seq(

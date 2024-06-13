@@ -17,7 +17,7 @@
 package repositories
 
 import cats.implicits.toTraverseOps
-import models.submission._
+import models.submission.*
 import models.{DailySummary, DailySummaryV2, ErrorSummary, SubmissionSummary}
 import org.apache.pekko.stream.scaladsl.Sink
 import org.scalactic.source.Position
@@ -68,7 +68,7 @@ class SubmissionItemRepositorySpec extends AnyFreeSpec
       )
       .build()
 
-  override protected lazy val repository: SubmissionItemRepository =
+  override protected val repository: SubmissionItemRepository =
     app.injector.instanceOf[SubmissionItemRepository]
 
   private val item = SubmissionItem(

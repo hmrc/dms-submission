@@ -28,6 +28,7 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.JsonOps
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.play.http.logging.Mdc
+import org.mongodb.scala.{ObservableFuture, SingleObservableFuture}
 
 import java.time.{Clock, Duration, LocalDate, ZoneOffset}
 import java.util.concurrent.TimeUnit
@@ -222,7 +223,7 @@ class SubmissionItemRepository @Inject() (
         Aggregates.project(Json.obj(
           "totalCount" -> findCount,
           "summaries" -> "$summaries"
-        ).toDocument())
+        ).toDocument)
       )).head()
     }
   }
@@ -270,7 +271,6 @@ class SubmissionItemRepository @Inject() (
 
     import SubmissionItemStatus._
 
-    @annotation.nowarn("msg=possible missing interpolator")
     def countStatus(status: SubmissionItemStatus): JsObject = Json.obj(
       "$sum" -> Json.obj(
         "$cond" -> Json.obj(
@@ -302,7 +302,7 @@ class SubmissionItemRepository @Inject() (
     Mdc.preservingMdc {
       collection.aggregate[DailySummary](List(
         Aggregates.`match`(Filters.eq("owner", owner)),
-        groupExpression.toDocument()
+        groupExpression.toDocument
       )).toFuture()
     }
   }
@@ -320,7 +320,7 @@ class SubmissionItemRepository @Inject() (
       collection.aggregate[DailySummaryV2](List(
         Aggregates.`match`(Filters.eq("owner", owner)),
         Aggregates.group(
-          Json.obj("$dateTrunc" -> Json.obj("date" -> "$created", "unit" -> "day")).toDocument(),
+          Json.obj("$dateTrunc" -> Json.obj("date" -> "$created", "unit" -> "day")).toDocument,
           Accumulators.sum("completed",
             Json.obj("$cond" -> Json.obj(
               "if" -> Json.obj("$and" -> Json.arr(
@@ -329,14 +329,14 @@ class SubmissionItemRepository @Inject() (
               )),
               "then" -> 1,
               "else" -> 0
-            )).toDocument()
+            )).toDocument
           ),
           Accumulators.sum("processing",
             Json.obj("$cond" -> Json.obj(
               "if" -> Json.obj("$in" -> Json.arr("$status", processingStatuses)),
               "then" -> 1,
               "else" -> 0
-            )).toDocument()
+            )).toDocument
           ),
           Accumulators.sum("failed",
             Json.obj("$cond" -> Json.obj(
@@ -346,7 +346,7 @@ class SubmissionItemRepository @Inject() (
               )),
               "then" -> 1,
               "else" -> 0
-            )).toDocument()
+            )).toDocument
           )
         ),
         Aggregates.project(
@@ -356,7 +356,7 @@ class SubmissionItemRepository @Inject() (
             "completed" -> 1,
             "processing" -> 1,
             "failed" -> 1
-          ).toDocument()
+          ).toDocument
         )
       )).toFuture()
     }
@@ -378,7 +378,7 @@ class SubmissionItemRepository @Inject() (
       Aggregates.project(Json.obj(
         "sdesFailureCount" -> Json.obj("$ifNull" -> Json.arr("$sdesFailureCount.count", 0)),
         "timeoutFailureCount" -> Json.obj("$ifNull" -> Json.arr("$timeoutFailureCount.count", 0))
-      ).toDocument())
+      ).toDocument)
     )).head()
   }
 

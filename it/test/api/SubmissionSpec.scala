@@ -16,11 +16,11 @@
 
 package api
 
+import com.github.tomakehurst.wiremock.client.WireMock.*
+import models.submission.{SubmissionItem, SubmissionItemStatus, SubmissionResponse}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
-import com.github.tomakehurst.wiremock.client.WireMock._
-import models.submission.{SubmissionItem, SubmissionItemStatus, SubmissionResponse}
 import org.mockito.Mockito.when
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -36,6 +36,7 @@ import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
+import play.api.libs.ws.{bodyWritableOf_Multipart, readableAsJson, writeableOf_JsValue}
 import play.api.mvc.MultipartFormData.{DataPart, FilePart}
 import play.api.test.Helpers.AUTHORIZATION
 import play.api.test.RunningServer
@@ -63,7 +64,7 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
   private val clientAuthToken: String = UUID.randomUUID().toString
 
-  override lazy val repository: SubmissionItemRepository =
+  override val repository: SubmissionItemRepository =
     app.injector.instanceOf[SubmissionItemRepository]
 
   override def fakeApplication(): Application = GuiceApplicationBuilder()
