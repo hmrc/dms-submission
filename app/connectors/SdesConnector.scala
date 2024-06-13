@@ -32,6 +32,7 @@ import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NoStackTrace
+import play.api.libs.ws.writeableOf_JsValue
 
 @Singleton
 class SdesConnector @Inject() (

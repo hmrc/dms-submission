@@ -18,7 +18,7 @@ package controllers
 
 import better.files.File
 import cats.data.{EitherNec, EitherT, NonEmptyChain}
-import cats.implicits._
+import cats.implicits.*
 import com.codahale.metrics.{MetricRegistry, Timer}
 import models.Pdf
 import models.submission.{Attachment, SubmissionRequest, SubmissionResponse}
@@ -27,9 +27,8 @@ import play.api.libs.Files
 import play.api.libs.json.Json
 import play.api.mvc.{ControllerComponents, MultipartFormData}
 import services.{PdfService, SubmissionService}
-import uk.gov.hmrc.internalauth.client._
+import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendBaseController
-import uk.gov.hmrc.play.bootstrap.metrics.Metrics
 
 import java.io.IOException
 import java.time.{Clock, Duration}

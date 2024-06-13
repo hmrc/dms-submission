@@ -40,7 +40,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
       "submissionReference" -> optional(text.verifying(validateSubmissionReference)),
       "callbackUrl" -> text.verifying(validateUrl),
       "metadata" -> metadata
-    )(SubmissionRequest.apply)(SubmissionRequest.unapply)
+    )(SubmissionRequest.apply)(o => Some(Tuple.fromProductTyped(o)))
   )
 
   private def metadata: Mapping[SubmissionMetadata] = mapping(
@@ -55,7 +55,7 @@ class SubmissionFormProvider @Inject() (configuration: Configuration) {
     "casKey" -> optional(text.verifying(nonEmpty, maxLength(65))),
     "classificationType" -> text.verifying(nonEmpty, maxLength(64)),
     "businessArea" -> text.verifying(nonEmpty, maxLength(32))
-  )(SubmissionMetadata.apply)(SubmissionMetadata.unapply)
+  )(SubmissionMetadata.apply)(o => Some(Tuple.fromProductTyped(o)))
 
   private val validateUrl: Constraint[String] =
     Constraint { string =>

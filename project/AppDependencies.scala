@@ -2,16 +2,16 @@ import sbt._
 
 object AppDependencies {
 
-  private val hmrcMongoVersion = "1.7.0"
-  private val bootstrapVersion = "8.4.0"
+  private val hmrcMongoVersion = "2.0.0"
+  private val bootstrapVersion = "9.0.0"
 
   val compile = Seq(
     "uk.gov.hmrc"             %% "bootstrap-backend-play-30"    % bootstrapVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-30"           % hmrcMongoVersion,
-    "uk.gov.hmrc.objectstore" %% "object-store-client-play-30"  % "1.4.0",
-    "com.github.pathikrit"    %% "better-files"                 % "3.9.1",
-    "org.typelevel"           %% "cats-core"                    % "2.8.0",
-    "uk.gov.hmrc"             %% "internal-auth-client-play-30" % "1.10.0",
+    "uk.gov.hmrc.objectstore" %% "object-store-client-play-30"  % "2.0.0",
+    "com.github.pathikrit"    %% "better-files"                 % "3.9.2",
+    "org.typelevel"           %% "cats-core"                    % "2.12.0",
+    "uk.gov.hmrc"             %% "internal-auth-client-play-30" % "3.0.0",
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-metrix-play-30"    % hmrcMongoVersion,
     "org.apache.pdfbox"       %  "pdfbox"                       % "2.0.27"
   )

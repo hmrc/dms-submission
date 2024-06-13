@@ -21,7 +21,7 @@ import models.Done
 import models.sdes.{FileAudit, FileChecksum, FileMetadata, FileNotifyRequest}
 import models.submission.{ObjectSummary, QueryResult, SubmissionItem, SubmissionItemStatus}
 import org.apache.pekko.pattern.CircuitBreakerOpenException
-import org.mockito.ArgumentMatchers.{any, eq => eqTo}
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito
 import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
@@ -70,7 +70,7 @@ class SdesServiceSpec extends AnyFreeSpec with Matchers
     )
     .build()
 
-  override protected lazy val repository: SubmissionItemRepository =
+  override protected val repository: SubmissionItemRepository =
     app.injector.instanceOf[SubmissionItemRepository]
 
   private val service = app.injector.instanceOf[SdesService]

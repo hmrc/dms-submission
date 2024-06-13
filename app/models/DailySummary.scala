@@ -48,7 +48,7 @@ object DailySummary {
     (__ \ "processed").write[Int] and
     (__ \ "failed").write[Int] and
     (__ \ "completed").write[Int]
-  )(unlift(DailySummary.unapply))
+  )(o => Tuple.fromProductTyped(o))
 
   lazy val mongoFormat: OFormat[DailySummary] = OFormat(mongoReads, mongoWrites)
 
