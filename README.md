@@ -55,7 +55,7 @@ callback url with the following body:
 When accepted by SDES:
 ```json
 {
-  "correlationId": "71378476-272e-48c4-ac8f-b18af8dbc8f4",
+  "id": "1234567890AB",
   "status": "Processed",
   "objectSummary": {
     "location": "dms-submission/your-service/71378476-272e-48c4-ac8f-b18af8dbc8f4",
@@ -69,7 +69,7 @@ When accepted by SDES:
 When there has been a downstream failure:
 ```json
 {
-  "correlationId": "71378476-272e-48c4-ac8f-b18af8dbc8f4",
+  "id": "1234567890AB",
   "status": "Failed",
   "objectSummary": {
     "location": "dms-submission/your-service/71378476-272e-48c4-ac8f-b18af8dbc8f4",
@@ -77,7 +77,8 @@ When there has been a downstream failure:
     "contentMd5": "<SOME_HASH>",
     "lastModified": "2022-02-01T12:00:00"
   },
-  "failureReason": "Some failure"
+  "failureReason": "Some failure",
+  "failureType": "<valid FailureType>"
 }
 ```
 > NOTE: The failure reason is whatever the failure reason SDES returns
@@ -88,7 +89,7 @@ The `dms-submission/submit` endpoint accepts a request with a `Multipart/Form-Da
 
 | Field name                  | Description                                                                                                                                                                                                                                              | Type      | Required |
 |-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|----------|
-| submissionReference         | This field is optional, if provided callbacks will use this instead of a randomly generated ID as the submission reference in DMS, and to inform you of status updates. The format is 12 uppercase alphanumeric characters. For Example: `A1B2C3D4E5F6`  | String    | Yes      |
+| submissionReference         | This field is optional, if provided callbacks will use this instead of a randomly generated ID as the submission reference in DMS, and to inform you of status updates. The format is 12 uppercase alphanumeric characters. For Example: `A1B2C3D4E5F6`  | String    | No       |
 | callbackUrl                 | This is the url which should be used to notify you of the outcome of your submission. This should be a fully-qualified URL and can be `localhost` based in local environments                                                                            | String    | Yes      |
 | form                        | This field is the actual pdf which should be sent to DMS                                                                                                                                                                                                 | File      | Yes      |
 | metadata.store              | This will be used in the `metadata.xml` for GIS/DMS. Indicates to the target system that the file should be stored. Defaults to `true`.                                                                                                                  | Boolean   | No       |
