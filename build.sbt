@@ -22,7 +22,6 @@ lazy val microservice = Project("dms-submission", file("."))
       "java.time.LocalDate"
     ),
     CodeCoverageSettings.settings,
-    resolvers += Resolver.jcenterRepo,
     inConfig(Test)(testSettings),
   )
 
