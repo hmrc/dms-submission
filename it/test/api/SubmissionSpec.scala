@@ -64,6 +64,8 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   private val dmsSubmissionAuthToken: String = UUID.randomUUID().toString
   private val clientAuthToken: String = UUID.randomUUID().toString
 
+  override def checkIndexedQueries = false
+
   override val repository: SubmissionItemRepository =
     app.injector.instanceOf[SubmissionItemRepository]
 
@@ -90,8 +92,14 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    if (!authTokenIsValid(dmsSubmissionAuthToken)) createDmsSubmissionAuthToken()
-    if (!authTokenIsValid(clientAuthToken)) createClientAuthToken()
+    if (!authTokenIsValid(dmsSubmissionAuthToken)) {
+      println("GOT TO DMS SUB AUTH TOKEN")
+      createDmsSubmissionAuthToken()
+    }
+    if (!authTokenIsValid(clientAuthToken)) {
+      println("GOT TO CLIENT AUTH TOKEN")
+      createClientAuthToken()
+    }
     clearSdesCallbacks()
   }
 
