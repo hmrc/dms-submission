@@ -93,11 +93,9 @@ class SubmissionSpec extends AnyFreeSpec with Matchers with DefaultPlayMongoRepo
   override def beforeEach(): Unit = {
     super.beforeEach()
     if (!authTokenIsValid(dmsSubmissionAuthToken)) {
-      println("GOT TO DMS SUB AUTH TOKEN")
       createDmsSubmissionAuthToken()
     }
     if (!authTokenIsValid(clientAuthToken)) {
-      println("GOT TO CLIENT AUTH TOKEN")
       createClientAuthToken()
     }
     clearSdesCallbacks()
